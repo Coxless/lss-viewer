@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { beforeAll, describe, expect, it } from 'vitest';
-import init, { buildFromCsv, remesh } from '../src/wasm/zspace_wasm.js';
+import init, { buildFromCsv, remesh } from '../src/wasm/lss_viewer_wasm.js';
 
-const CLI = new URL('../../target/release/zspace-cli', import.meta.url).pathname;
-const dir = mkdtempSync(join(tmpdir(), 'zspace-wasm-'));
+const CLI = new URL('../../target/release/lss-viewer-cli', import.meta.url).pathname;
+const dir = mkdtempSync(join(tmpdir(), 'lss-viewer-wasm-'));
 const csvPath = join(dir, 'mock.csv');
 const outDir = join(dir, 'cli');
 const sha = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
@@ -17,7 +17,7 @@ type Result = { hierarchy: Uint8Array; points: Uint8Array; shells: Uint8Array; d
 let wasm: Result;
 
 beforeAll(async () => {
-  await init({ module_or_path: readFileSync(new URL('../src/wasm/zspace_wasm_bg.wasm', import.meta.url)) });
+  await init({ module_or_path: readFileSync(new URL('../src/wasm/lss_viewer_wasm_bg.wasm', import.meta.url)) });
   execFileSync(CLI, ['mock', '--n', '40000', '--seed', '11', '--out', csvPath], { stdio: 'ignore' });
   execFileSync(CLI, ['build', '--input', csvPath, '--out', outDir, '--name', 'x'], { stdio: 'ignore' });
   wasm = buildFromCsv(readFileSync(csvPath), 'x', -0.6, 1, () => {}) as Result;

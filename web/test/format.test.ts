@@ -5,7 +5,7 @@ import { Hierarchy } from '../src/data/hierarchy';
 import { decodeShells } from '../src/data/shells';
 import type { Metadata, VoidEntry } from '../src/data/types';
 
-// These read a dataset written by zspace-cli (`npm run fixtures`), so the Rust writer and
+// These read a dataset written by lss-viewer-cli (`npm run fixtures`), so the Rust writer and
 // the TypeScript readers are checked against each other.
 const dir = new URL('./fixtures/', import.meta.url);
 const read = (name: string) => readFileSync(new URL(name, dir));
@@ -14,7 +14,7 @@ const meta = JSON.parse(read('metadata.json').toString()) as Metadata;
 
 describe('dataset written by the CLI', () => {
   it('has the documented metadata', () => {
-    expect(meta.format).toBe('zspace/1');
+    expect(meta.format).toBe('lss-viewer/1');
     expect(meta.octree.pointBytes).toBe(8);
     expect(meta.layers.map((l) => l.kind)).toEqual(['isosurface', 'list']);
     expect(meta.source.mock).toBe(true);

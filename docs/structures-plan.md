@@ -9,7 +9,7 @@ concept 5.8 の「任意のマーカー」（v1.1）を発展させたもので�
 
 ## 1. 今のデータで何が見えるか
 
-SDSS DR18（z 0.01〜0.12、45万銀河）に対して、`zspace-cli import-structures` で実測した値です。領域は `structures/catalog.json` にあり、各項目に根拠（`basis`）と出典（`refs`）があります。
+SDSS DR18（z 0.01〜0.12、45万銀河）に対して、`lss-viewer-cli import-structures` で実測した値です。領域は `structures/catalog.json` にあり、各項目に根拠（`basis`）と出典（`refs`）があります。
 
 - **範囲内の割合：** 領域のうち、観測された方向と距離に入る割合
 - **平均との比：** 領域内の銀河数を、同じ距離の平均密度から期待される数で割った値。1 より大きいと高密度、小さいと低密度
@@ -92,7 +92,7 @@ SDSS DR18（z 0.01〜0.12、45万銀河）に対して、`zspace-cli import-stru
 
 ### データ形式と CLI
 
-`zspace-cli import-structures --dataset DIR --catalog structures/catalog.json`
+`lss-viewer-cli import-structures --dataset DIR --catalog structures/catalog.json`
 
 - `layers` に `kind: "regions"` を追加し、`structures.json` を出力します。concept 5.8 のレイヤーの枠組みに乗ります
 - 構造ごとに範囲内の割合、銀河数、平均との比を計算し、`status`（`visible`、`outside`）と理由を付けます。1 章の表は、このコマンドで再現します

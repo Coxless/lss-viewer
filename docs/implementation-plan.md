@@ -1,4 +1,4 @@
-# zspace 実装計画
+# lss-viewer 実装計画
 
 `concept.md` を実装するための計画です。マイルストーン（M0〜M6）は concept 10章を踏襲し、作業・順序・完了条件を具体化しています。
 調査日：2026-11-01
@@ -39,7 +39,7 @@
 | 項目 | 期限 |
 |---|---|
 | SDSS データの再配布条件・必要な謝辞 | M6 の公開前 |
-| 「zspace」の商標（zSpace社と重なる） | M6 の公開前 |
+| 旧名「zspace」の商標（zSpace社と重なる） | lss-viewer への改名で重なりを解消（[判断の記録](decisions.md)） |
 | このリポジトリ自体のライセンス | M6 の公開前 |
 | 赤方偏移空間の歪み | v1 は補正せず説明文で触れる（concept どおり） |
 
@@ -49,7 +49,7 @@
 
 マイルストーンをまたいで効く決定です。後から変えると手戻りが大きいので、最初に固定します。
 
-1. **データ形式を契約にする。** M0 で `docs/format.md` を書き、`zspace-core::format` に読み書きの両方を実装する。CLI・Wasm・テストはすべてこれを使う。ビューア側の TypeScript の読み取りは、Rust が生成した fixture で検証する。
+1. **データ形式を契約にする。** M0 で `docs/format.md` を書き、`lss-viewer-core::format` に読み書きの両方を実装する。CLI・Wasm・テストはすべてこれを使う。ビューア側の TypeScript の読み取りは、Rust が生成した fixture で検証する。
 2. **`DataSource` インターフェースを M2 で導入する。** `getHierarchy()`、`getTile(id)`、`getShells()`、`getDensity()` を定義し、HTTP 版とインメモリ版（U9 の CSV 用）を差し替えられるようにする。これで M5 でビューアを変更せずに済む。
 3. **結果の決定性を保証する。** 乱数はシード固定の `rand_chacha` を使い、rayon の有無やネイティブ／Wasm の違いで出力が変わらないようにする（同一バイトになることをテストする）。これが画像比較テストの前提になる。
 4. **並列処理は `parallel` feature の裏に置く。** GitHub Pages は COOP/COEP ヘッダーを設定できず SharedArrayBuffer を使えないため、Wasm は単一スレッドに固定する。
@@ -61,7 +61,7 @@
 ### クレート内のモジュール
 
 ```
-zspace-core/src/
+lss-viewer-core/src/
   cosmology.rs   z→r の表と補間
   catalog.rs     CSV読み取り、フィルタ、属性マッピング、棄却レポート
   mock.rs        模擬カタログ生成
@@ -116,7 +116,7 @@ M0 → M1 → M2 → M3 ─┬→ M4 ─┬→ M6
 - [x] `catalog.rs`：列名の大文字小文字を無視した検出、`#Table1` のスキップ、z の範囲フィルタ、棄却件数のレポート
 - [x] `octree.rs`：シャッフル＋安定振り分け、K=4096、最大深さ14
 - [x] `quantize.rs`、`format.rs`（hierarchy, points, metadata）
-- [x] `zspace-cli tile`（`--input --out --seed --k --max-depth --split-files --attr-map --timings`）
+- [x] `lss-viewer-cli tile`（`--input --out --seed --k --max-depth --split-files --attr-map --timings`）
 - [x] rayon による並列化。段階ごとの処理時間を `--timings` で出す
 - [x] 単体テスト：全点がちょうど1回含まれる、各ノードが K 以下、量子化誤差が半辺長/32767 以下
 - [x] **実ホストでの Range 確認**：GitHub Pages 上の既存の `.bin`（threejs.org）で、ブラウザの `fetch` が 206 かつ正しいバイト列で返ることを確認した（R1）。自分のデータセットでも公開先で確認した
@@ -146,7 +146,7 @@ M0 → M1 → M2 → M3 ─┬→ M4 ─┬→ M6
 - [x] `shells.rs`：`fast-surface-nets` で生成後、範囲外セルに接する頂点を含む三角形を除去して頂点を詰め直す。法線は正規化する。入力は `δ − しきい値`（高密度は符号を反転）
 - [x] 8 バイト頂点、インデックスの差分符号化、gzip
 - [x] `voids.rs`：簡易検出（極小点＋26方向の光線、端に当たる光線3本以上で棄却）
-- [x] `metadata.layers` の生成、`zspace-cli build` で全段を一括実行
+- [x] `metadata.layers` の生成、`lss-viewer-cli build` で全段を一括実行
 - [x] ビューア：輪郭の描画（フレネル風の α）、レイヤー切り替え、自動モードの不透明度
 - [x] SDSS 実データの取得（下記リスク R2 に注意）。取得 SQL と手順を `docs/` に残す
 - [x] 単体テスト：一様な点で δ 平均が 0±0.02、一様場で面が出ない、球状の低密度領域で球面が出る
@@ -167,7 +167,7 @@ M0 → M1 → M2 → M3 ─┬→ M4 ─┬→ M6
 
 ### M5：ブラウザ内前処理（M）
 
-- [x] `zspace-wasm`：`wasm-bindgen` のラッパー、遅延読み込み
+- [x] `lss-viewer-wasm`：`wasm-bindgen` のラッパー、遅延読み込み
 - [x] `DataSource` のインメモリ版
 - [x] U5：しきい値変更 → Worker で再生成 → メッシュ差し替え。density 取得中の表示も用意する
 - [x] U9：CSV を Worker で処理する。エラーはプロトタイプ同様に日本語で出す（列が見つからない、有効な行が5000未満）
@@ -177,7 +177,7 @@ M0 → M1 → M2 → M3 ─┬→ M4 ─┬→ M6
 
 ### M6：VAST 取り込みと公開（M）
 
-- [x] `zspace-cli import-vast`：v1.3.1 の Planck2018 版を使う。`holes` の第5列（`flag`）がボイド ID で、ボイドごとに球の和集合の距離場から Surface Nets でメッシュを作る
+- [x] `lss-viewer-cli import-vast`：v1.3.1 の Planck2018 版を使う。`holes` の第5列（`flag`）がボイド ID で、ボイドごとに球の和集合の距離場から Surface Nets でメッシュを作る
 - [x] ボイド一覧：`maximal` の `R_eff` を半径に使い、中心は holes の体積重心とする（`maximal` の座標は最大球の中心で、ボイドの中心ではないため）
 - [x] 一覧に「VAST」「簡易検出」の区別を表示（5.7）
 - [x] GitHub Actions で Pages へデプロイ、公開先で確認
@@ -237,7 +237,7 @@ FITS 読み込み、高密度レイヤーと銀河団カタログ、任意マー
 | Wasm と CLI の出力 | バイト一致（40,000 件で確認） | 同一 |
 | GitHub Pages の Range | 他サイトの `.bin` で 206 と正しいバイト列を確認 | 動作 |
 
-公開先（https://coxless.github.io/zscope/ 、SDSS DR18 + VAST）での確認：
+公開先（https://coxless.github.io/lss-viewer/ 、SDSS DR18 + VAST。測定時の URL は旧名の `/zscope/`）での確認：
 
 | 項目 | 実測 | 目標 |
 |---|---|---|

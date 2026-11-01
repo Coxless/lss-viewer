@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: 24
       - run: cargo install --locked wasm-pack
-      - run: cargo build --release -p zspace-cli
+      - run: cargo build --release -p lss-viewer-cli
       - run: scripts/fetch-data.sh
       - run: scripts/build-demo.sh web/public/dataset
       - working-directory: web

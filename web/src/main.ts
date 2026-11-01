@@ -824,7 +824,7 @@ const hooks = {
   camera,
   bench: null as null | Awaited<ReturnType<typeof runBench>>,
 };
-(window as unknown as { __zspace: typeof hooks }).__zspace = hooks;
+(window as unknown as { __lssViewer: typeof hooks }).__lssViewer = hooks;
 
 async function startBench() {
   while (!hooks.idle()) await new Promise((r) => setTimeout(r, 50));

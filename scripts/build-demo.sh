@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT=${1:-web/public/dataset}
-CLI=${CLI:-target/release/zspace-cli}
+CLI=${CLI:-target/release/lss-viewer-cli}
 "$CLI" build --input data/sdss/dr18.csv --out "$OUT" --attr-map petroMag_r \
   --name 'SDSS DR18' --query "$(cat data/sdss/query.sql)" --timings
 "$CLI" import-vast --dataset "$OUT" \

@@ -1,18 +1,18 @@
-//! zspace-cli: preprocesses galaxy catalogs into static dataset files.
+//! lss-viewer-cli: preprocesses galaxy catalogs into static dataset files.
 
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
-use zspace_core::catalog::{self, AttrMap};
-use zspace_core::dataset::{self, Dataset, Options};
-use zspace_core::format::{read_hierarchy, Metadata, Source};
-use zspace_core::footprint::Footprint;
-use zspace_core::{layers, mock, quantize, shells, structures, vast, Galaxy};
+use lss_viewer_core::catalog::{self, AttrMap};
+use lss_viewer_core::dataset::{self, Dataset, Options};
+use lss_viewer_core::format::{read_hierarchy, Metadata, Source};
+use lss_viewer_core::footprint::Footprint;
+use lss_viewer_core::{layers, mock, quantize, shells, structures, vast, Galaxy};
 
 const USAGE: &str = "\
-zspace-cli <command> [options]
+lss-viewer-cli <command> [options]
 
   mock        --out FILE [--n 600000] [--seed 7]
               Write a mock catalog as CSV.

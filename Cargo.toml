@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/zspace-core", "crates/zspace-cli", "crates/zspace-wasm"]
+members = ["crates/lss-viewer-core", "crates/lss-viewer-cli", "crates/lss-viewer-wasm"]
 
 [workspace.package]
 version = "0.1.0"

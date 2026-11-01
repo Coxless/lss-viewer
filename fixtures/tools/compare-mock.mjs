@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 const dir = process.argv[2], n = +(process.argv[3] ?? 600000);
-const html = readFileSync(new URL('../../prototype/zspace-prototype.html', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../../prototype/lss-viewer-prototype.html', import.meta.url), 'utf8');
 const { instance } = await WebAssembly.instantiate(Buffer.from(/WASM_B64 = "([^"]+)"/.exec(html)[1], 'base64'), {});
 const e = instance.exports;
 e.reset(); e.gen_mock(n, 7); e.build(4096, 120, 1.4);

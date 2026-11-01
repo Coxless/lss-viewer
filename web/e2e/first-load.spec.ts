@@ -13,8 +13,8 @@ test('first display on 4G takes under 2 seconds', async ({ page, context }) => {
     uploadThroughput: (1.5 * 1024 * 1024) / 8,
   });
   await page.goto('/');
-  await page.waitForFunction(() => window.__zspace?.stats().firstDraw !== null, undefined, { timeout: 60_000 });
-  const f = await page.evaluate(() => window.__zspace.stats().firstDraw!);
+  await page.waitForFunction(() => window.__lssViewer?.stats().firstDraw !== null, undefined, { timeout: 60_000 });
+  const f = await page.evaluate(() => window.__lssViewer.stats().firstDraw!);
   console.log(`first display on 4G: ${f.ms} ms, ${(f.bytes / 1024).toFixed(0)} KB of data`);
   expect(f.ms).toBeLessThan(2000);
   expect(f.bytes).toBeLessThan(1_000_000);

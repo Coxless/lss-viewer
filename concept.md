@@ -1,11 +1,11 @@
-# zspace — concept.md
+# lss-viewer — concept.md
 
 宇宙の大規模構造（銀河団・フィラメント・壁・ボイド）を、実際の観測データからブラウザで3D表示するツールの設計書です。
 Claude Code が実装するための仕様として書いています。
 
-**名前の由来**：zspace は「赤方偏移空間（redshift space）」から。赤方偏移 z を距離に変換して作る3D空間そのものを指し、座標軸の z とも重ねています。
+**名前の由来**：LSS は Large-Scale Structure（宇宙の大規模構造）の略です。
 
-参照実装（プロトタイプ）：`prototype/zspace-prototype.html`（1ファイル・約80KB）。
+参照実装（プロトタイプ）：`prototype/lss-viewer-prototype.html`（1ファイル・約80KB）。
 模擬データ・C製Wasmコア・WebGL2ビューアで動作を確認済みです。本実装では構成を作り直しますが、見た目と操作感はこれを基準にします。
 
 ---
@@ -41,7 +41,7 @@ Claude Code が実装するための仕様として書いています。
 
 ```
                    ┌────────── 事前処理（一度だけ） ──────────┐
-SDSS CSV / FITS ─▶ │  zspace-cli (Rust)                          │ ─▶ dataset/ (静的ファイル)
+SDSS CSV / FITS ─▶ │  lss-viewer-cli (Rust)                      │ ─▶ dataset/ (静的ファイル)
 VASTボイドカタログ ─▶ │   座標変換 → 八分木タイル → 密度格子 → 輪郭 │      metadata.json
                    └──────────────────────────────────────────┘      hierarchy.bin
                                                                         points.bin
@@ -50,7 +50,7 @@ VASTボイドカタログ ─▶ │   座標変換 → 八分木タイル → �
                                                                         shells.bin
                    ┌────────── ブラウザ ─────────────────────────┐
 dataset/ ─(HTTP Range)─▶ Worker: 取得・デコード                      │
-                   │      Worker: zspace-wasm（同じRustコア）        │ ← ユーザーのCSV
+                   │      Worker: lss-viewer-wasm（同じRustコア）    │ ← ユーザーのCSV
                    │      Main:  WebGL2 描画・LOD選択・UI            │
                    └──────────────────────────────────────────┘
 ```
@@ -61,14 +61,14 @@ dataset/ ─(HTTP Range)─▶ Worker: 取得・デコード                    
 ### リポジトリ構成（案）
 
 ```
-zspace/
+lss-viewer/
 ├─ crates/
-│  ├─ zspace-core/     # アルゴリズム本体（no I/O、wasm対応）
-│  ├─ zspace-cli/      # 入出力、並列処理（rayon）
-│  └─ zspace-wasm/     # wasm-bindgen ラッパー
+│  ├─ lss-viewer-core/ # アルゴリズム本体（no I/O、wasm対応）
+│  ├─ lss-viewer-cli/  # 入出力、並列処理（rayon）
+│  └─ lss-viewer-wasm/ # wasm-bindgen ラッパー
 ├─ web/                # TypeScript + Vite、WebGL2 ビューア
 ├─ fixtures/           # 模擬カタログ生成（テスト用）、小さな実データ
-├─ prototype/zspace-prototype.html
+├─ prototype/lss-viewer-prototype.html
 └─ docs/format.md      # データ形式の仕様（本書の6章を移す）
 ```
 
@@ -79,7 +79,7 @@ zspace/
 | SDSS DR18 SpecObj | 銀河の位置（ra, dec, z） | SkyServer SQL（下記）、大量ならCasJobs | 公開データ |
 | VAST SDSS DR7 ボイドカタログ | ボイドの位置・形（VoidFinder の球の集まり、V2 の領域） | Zenodo（v1.3.1、record 11043278。Planck2018版を使う） | ASCII。CC-BY-4.0（クレジット表記が必須） |
 | DESI DR1 | 将来の拡張（数千万天体） | DESI公式の公開データ | v2以降 |
-| 模擬カタログ | テスト・デモ・オフライン開発 | zspace-core 内の生成器 | プロトタイプのボロノイ型モデルを再実装（Cソースは現存しない） |
+| 模擬カタログ | テスト・デモ・オフライン開発 | lss-viewer-core 内の生成器 | プロトタイプのボロノイ型モデルを再実装（Cソースは現存しない） |
 
 SkyServer用SQL（v1の標準入力）：
 
@@ -91,7 +91,7 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
   AND s.z BETWEEN 0.01 AND 0.12
 ```
 
-## 5. 前処理パイプライン（zspace-core）
+## 5. 前処理パイプライン（lss-viewer-core）
 
 各段の既定値はプロトタイプで確認した値です。
 
@@ -161,7 +161,7 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 ### metadata.json
 ```json
 {
-  "format": "zspace/1",
+  "format": "lss-viewer/1",
   "source": { "name": "SDSS DR18", "query": "...", "rows": 612345, "dropped": 1203 },
   "cosmology": { "Om": 0.31, "OL": 0.69, "units": "Mpc/h" },
   "bbox": [xmin, ymin, zmin, xmax, ymax, zmax],
@@ -248,15 +248,15 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 
 1. **天文カタログ用のLODタイラー**
    PotreeConverter は LiDAR（LAS形式）向けです。赤方偏移から距離への変換、観測範囲マスク、量子化属性の設計がなく、既定のポアソンディスク抽出はクラスタリングを消します（ランダム抽出は選べる）。LASに変換すれば八分木は作れますが、天文の情報が失われ、Potree形式にボイド関連のデータを載せる場所もありません。
-   → `zspace-core::octree` と `zspace-cli tile`
+   → `lss-viewer-core::octree` と `lss-viewer-cli tile`
 
 2. **観測範囲と選択関数を補正した密度場と、端を開いたボイド輪郭メッシュ**
    VAST や VIDE はボイドを「検出」しますが、出力は球の集まりやボロノイ領域の表です。Web向けの軽いメッシュは出しません。また、観測範囲の端で偽の壁を作らない処理は自前で必要です。
-   → `zspace-core::density`、`zspace-core::shells`
+   → `lss-viewer-core::density`、`lss-viewer-core::shells`
 
 3. **VASTカタログから表示用データへの変換**
    VoidFinder の球の集まりを、ボイドごとの中心・半径・表面メッシュ（球の和集合の距離場 → Surface Nets）に変換するツール。
-   → `zspace-cli import-vast`
+   → `lss-viewer-cli import-vast`
 
 4. **ボイド観察に特化したWebビューア**
    近いものは Firefly（ブラウザで動く天文用の点群表示、独自の八分木、数十億粒子規模）です。ただし、ボイド輪郭の重ね表示、スライス、ボイドへの飛び込み、しきい値の即時変更はありません。Potree ビューアは点群の汎用表示で、天文用の機能がありません。
@@ -290,11 +290,10 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 
 - 赤方偏移空間の歪み（銀河団が視線方向に伸びる「神の指」）を補正するか。v1は補正せず、説明文で触れるだけにする予定。補正するならグループ検出が必要。
 - SDSS 本体データの再配布条件と必要な謝辞の確認（VAST カタログは CC-BY-4.0 で確認済み）。
-- 「zspace」は3D表示装置を作る同名の会社（zSpace社）と重なる。公開前に商標の扱いを確認する。
 
 ## 13. 参考
 
-- プロトタイプ：`prototype/zspace-prototype.html`（WasmコアはC。本実装でRustに置き換える）
+- プロトタイプ：`prototype/lss-viewer-prototype.html`（WasmコアはC。本実装でRustに置き換える）
 - PotreeConverter：https://github.com/potree/PotreeConverter
 - Firefly：https://arxiv.org/abs/2207.13706 、https://firefly.rcs.northwestern.edu
 - VAST：https://github.com/desi-ur/vast 、カタログ https://zenodo.org/records/11043278

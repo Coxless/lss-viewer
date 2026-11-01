@@ -1,7 +1,7 @@
-# データ形式 `zspace/1`
+# データ形式 `lss-viewer/1`
 
 データセットは静的ファイルの集まりです。数値はすべてリトルエンディアン。ビューアは `metadata.json` を最初に読みます。
-Rust 側の実装は `crates/zspace-core/src/format.rs`、`shells.rs`、`density.rs`、TypeScript 側は `web/src/data/` です。
+Rust 側の実装は `crates/lss-viewer-core/src/format.rs`、`shells.rs`、`density.rs`、TypeScript 側は `web/src/data/` です。
 
 | ファイル | 取得方法 | 内容 |
 |---|---|---|
@@ -18,7 +18,7 @@ Rust 側の実装は `crates/zspace-core/src/format.rs`、`shells.rs`、`density
 
 ```json
 {
-  "format": "zspace/1",
+  "format": "lss-viewer/1",
   "source": { "name": "SDSS DR18", "mock": false, "query": "...", "rows": 612345, "dropped": 1203 },
   "cosmology": { "Om": 0.31, "OL": 0.69, "units": "Mpc/h" },
   "bbox": [0, 0, 0, 1, 1, 1],
@@ -35,15 +35,15 @@ Rust 側の実装は `crates/zspace-core/src/format.rs`、`shells.rs`、`density
 }
 ```
 
-- `density`、`footprint` は `zspace-cli tile` の出力にはありません。`layers` は空になります。
+- `density`、`footprint` は `lss-viewer-cli tile` の出力にはありません。`layers` は空になります。
 - `layers` の順序に意味があります。ビューアは最初の `isosurface` と、それに対応する `list` を初期表示にします。
 - `params.color` は等値面の色、`params.surface` は一覧に対応する等値面の `id` です。ビューアは表示中の等値面に合わせて一覧を切り替えます。
 - `kind` は `isosurface`、`list`、`polyline`、`markers`、`regions`。UI の文言は `name` から作ります。
 - `raRange[0] > raRange[1]` は赤経 0° をまたぐ範囲です。
 - `rectangular` が偽のとき（領域が飛び地のときなど）は、`outline` に境界線分を `[ra0, dec0, ra1, dec1, ...]`（度）で持ちます。ビューアはこれを枠として描きます。
 - `centroid` は銀河の平均位置で、初期視点の注視点に使います。
-- `zspace-cli import-vast` は、一覧とメッシュを `layers` の末尾に追加します。VAST のメッシュは 1 MB を超えるので、表示をオンにしたときに取得します。
-- `zspace-cli import-structures` は、`regions` レイヤーと `structures.json` を追加します。
+- `lss-viewer-cli import-vast` は、一覧とメッシュを `layers` の末尾に追加します。VAST のメッシュは 1 MB を超えるので、表示をオンにしたときに取得します。
+- `lss-viewer-cli import-structures` は、`regions` レイヤーと `structures.json` を追加します。
 - `source.mock` が真のデータは、画面で模擬データと明示します。
 
 ## hierarchy.bin
@@ -111,7 +111,7 @@ gzip を展開した形式です。
 
 ## structures.json
 
-有名な構造の一覧で、`kind: "regions"` のレイヤーから参照します。`zspace-cli import-structures --dataset DIR --catalog structures/catalog.json` が、カタログをデータセットと照合して書き出します。配列の順序がそのまま画面の順序です。
+有名な構造の一覧で、`kind: "regions"` のレイヤーから参照します。`lss-viewer-cli import-structures --dataset DIR --catalog structures/catalog.json` が、カタログをデータセットと照合して書き出します。配列の順序がそのまま画面の順序です。
 
 ```json
 [{

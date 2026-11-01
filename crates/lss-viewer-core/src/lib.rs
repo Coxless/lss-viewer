@@ -1,4 +1,4 @@
-//! zspace-core: the preprocessing algorithms shared by the CLI and the Wasm build.
+//! lss-viewer-core: the preprocessing algorithms shared by the CLI and the Wasm build.
 //!
 //! Nothing in here touches the file system. All trigonometry goes through `libm`
 //! and all randomness through a seeded ChaCha stream, so the native and the Wasm

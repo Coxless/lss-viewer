@@ -27,7 +27,7 @@ function post(m: ToMain, transfer: Transferable[] = []) {
 }
 
 async function wasm() {
-  const mod = await import('../wasm/zspace_wasm.js');
+  const mod = await import('../wasm/lss_viewer_wasm.js');
   await mod.default();
   return mod;
 }

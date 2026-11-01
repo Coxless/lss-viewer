@@ -1,9 +1,9 @@
-//! The dataset format (`zspace/1`). `docs/format.md` is the written contract; this
+//! The dataset format (`lss-viewer/1`). `docs/format.md` is the written contract; this
 //! module is its only implementation on the Rust side.
 
 use serde::{Deserialize, Serialize};
 
-pub const FORMAT: &str = "zspace/1";
+pub const FORMAT: &str = "lss-viewer/1";
 pub const HIERARCHY_RECORD: usize = 32;
 
 /// One fixed 32-byte record in `hierarchy.bin`.

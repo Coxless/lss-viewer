@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 declare global {
   interface Window {
-    __zspace: {
+    __lssViewer: {
       idle(): boolean;
       stats(): {
         points: number; nodes: number; cached: number; cachedPoints: number; transferred: number; gpuBytes: number;
@@ -20,10 +20,10 @@ declare global {
 const VIEW = '#v=-230,-20,120,0.6,0.5,700';
 
 async function settled(page: Page) {
-  await page.waitForFunction(() => window.__zspace?.idle(), undefined, { timeout: 90_000 });
+  await page.waitForFunction(() => window.__lssViewer?.idle(), undefined, { timeout: 90_000 });
   // Wait until the state stays idle across a few frames.
   await page.waitForTimeout(250);
-  await page.waitForFunction(() => window.__zspace.idle() && !window.__zspace.camera.flying, undefined, { timeout: 90_000 });
+  await page.waitForFunction(() => window.__lssViewer.idle() && !window.__lssViewer.camera.flying, undefined, { timeout: 90_000 });
 }
 
 function collectErrors(page: Page) {
@@ -44,7 +44,7 @@ test('loads the dataset, draws, and stops drawing when still (U8, 7.4)', async (
   const errors = collectErrors(page);
   await page.goto('/');
   await settled(page);
-  const s = await page.evaluate(() => window.__zspace.stats());
+  const s = await page.evaluate(() => window.__lssViewer.stats());
   expect(s.points).toBeGreaterThan(1000);
   expect(s.voids).toBeGreaterThan(5);
   expect(s.firstDraw).not.toBeNull();
@@ -52,14 +52,14 @@ test('loads the dataset, draws, and stops drawing when still (U8, 7.4)', async (
   await expect(page.locator('#veil')).toHaveCSS('pointer-events', 'none');
   const a = s.frame;
   await page.waitForTimeout(500);
-  expect((await page.evaluate(() => window.__zspace.stats())).frame).toBe(a);
+  expect((await page.evaluate(() => window.__lssViewer.stats())).frame).toBe(a);
   expect(errors).toEqual([]);
 });
 
 test('first display is under 1 MB (section 8)', async ({ page }) => {
   await page.goto('/');
   await settled(page);
-  const s = await page.evaluate(() => window.__zspace.stats());
+  const s = await page.evaluate(() => window.__lssViewer.stats());
   console.log(`first display: ${s.firstDraw!.ms} ms, ${(s.firstDraw!.bytes / 1024).toFixed(0)} KB`);
   expect(s.firstDraw!.bytes).toBeLessThan(1_000_000);
 });
@@ -87,13 +87,13 @@ test('density is not fetched until the threshold moves, then the surface and lis
   expect(requests.some((u) => u.includes('density'))).toBe(false);
   expect(requests.some((u) => u.endsWith('.wasm'))).toBe(false);
 
-  const before = await page.evaluate(() => window.__zspace.stats().gpuBytes);
+  const before = await page.evaluate(() => window.__lssViewer.stats().gpuBytes);
   await page.locator('#thr').fill('-45');
   await expect(page.locator('#thrTxt')).toHaveText('δ = −0.45');
   await settled(page);
   expect(requests.some((u) => u.includes('density'))).toBe(true);
   await expect(page.locator('#thrStatus')).toHaveText('');
-  const after = await page.evaluate(() => window.__zspace.stats());
+  const after = await page.evaluate(() => window.__lssViewer.stats());
   expect(after.gpuBytes).not.toBe(before);
   expect(after.voids).toBeGreaterThan(0);
 
@@ -110,11 +110,11 @@ test('moving the threshold with the layer off turns it on and ticks its box (U5)
   const box = page.locator('#layers .layer').first().locator('input[type=checkbox]');
   await box.uncheck();
   await settled(page);
-  expect((await page.evaluate(() => window.__zspace.stats())).layersOn.voids).toBe(false);
+  expect((await page.evaluate(() => window.__lssViewer.stats())).layersOn.voids).toBe(false);
   await page.locator('#thr').fill('-50');
   await expect(box).toBeChecked();
   await settled(page);
-  expect((await page.evaluate(() => window.__zspace.stats())).layersOn.voids).toBe(true);
+  expect((await page.evaluate(() => window.__lssViewer.stats())).layersOn.voids).toBe(true);
 });
 
 test('the threshold sits inside the layer it changes', async ({ page }) => {
@@ -130,8 +130,8 @@ test('the fan button cuts through the observer and looks straight at the slab (U
   await expect(page.locator('#slabTxt')).toHaveText('厚さ 23 Mpc/h');
   await settled(page);
   const r = await page.evaluate(() => {
-    const c = window.__zspace.camera as unknown as { eye(): number[]; target: number[] };
-    return { slab: window.__zspace.stats().slab!, eye: c.eye(), target: c.target };
+    const c = window.__lssViewer.camera as unknown as { eye(): number[]; target: number[] };
+    return { slab: window.__lssViewer.stats().slab!, eye: c.eye(), target: c.target };
   });
   const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   // The plane contains the observer at the origin.
@@ -159,24 +159,24 @@ test('no survey note for a survey that fills its box', async ({ page }) => {
 test('display modes change what is drawn (U2)', async ({ page }) => {
   await page.goto(`/${VIEW}`);
   await settled(page);
-  const auto = (await page.evaluate(() => window.__zspace.stats())).points;
+  const auto = (await page.evaluate(() => window.__lssViewer.stats())).points;
   expect(auto).toBeGreaterThan(0);
   await page.click('#mShell');
   await settled(page);
-  expect((await page.evaluate(() => window.__zspace.stats())).points).toBe(0);
+  expect((await page.evaluate(() => window.__lssViewer.stats())).points).toBe(0);
   await page.click('#mGal');
   await settled(page);
-  expect((await page.evaluate(() => window.__zspace.stats())).points).toBeGreaterThanOrEqual(auto);
+  expect((await page.evaluate(() => window.__lssViewer.stats())).points).toBeGreaterThanOrEqual(auto);
 });
 
 test('zooming in shows more galaxies than the far view (U2)', async ({ page }) => {
   await page.goto('/#v=-230,-20,120,0.6,0.5,900');
   await settled(page);
-  const far = (await page.evaluate(() => window.__zspace.stats())).points;
+  const far = (await page.evaluate(() => window.__lssViewer.stats())).points;
   await page.goto('/#v=-230,-20,120,0.6,0.5,120');
   await page.reload();
   await settled(page);
-  const near = (await page.evaluate(() => window.__zspace.stats())).points;
+  const near = (await page.evaluate(() => window.__lssViewer.stats())).points;
   expect(near).toBeGreaterThan(far);
 });
 
@@ -186,7 +186,7 @@ test('next void flies inside it and marks it (U3)', async ({ page }) => {
   await page.click('#nextVoid');
   await expect(page.locator('#voidList button[aria-current="true"]')).toHaveCount(1);
   await settled(page);
-  const s = await page.evaluate(() => ({ dist: window.__zspace.camera.dist, sel: window.__zspace.stats().selected }));
+  const s = await page.evaluate(() => ({ dist: window.__lssViewer.camera.dist, sel: window.__lssViewer.stats().selected }));
   expect(s.sel).toBe(0);
   expect(s.dist).toBeLessThan(60);
   await expect(page.locator('.label.void')).toContainText('いま内部');
@@ -197,11 +197,11 @@ test('slice reduces the galaxies and its controls work (U4)', async ({ page }) =
   await settled(page);
   await page.click('#mGal');
   await settled(page);
-  const all = (await page.evaluate(() => window.__zspace.stats())).nodes;
+  const all = (await page.evaluate(() => window.__lssViewer.stats())).nodes;
   await page.locator('#slab').fill('20');
   await expect(page.locator('#slabTxt')).toHaveText(/厚さ \d+ Mpc\/h/);
   await settled(page);
-  expect((await page.evaluate(() => window.__zspace.stats())).nodes).toBeLessThan(all);
+  expect((await page.evaluate(() => window.__lssViewer.stats())).nodes).toBeLessThan(all);
   await page.locator('#slab').fill('0');
   await expect(page.locator('#slabTxt')).toHaveText('オフ');
   await page.click('#slabAlign');
@@ -224,16 +224,16 @@ test('point budget switch (U10)', async ({ page }) => {
   await settled(page);
   await page.click('#mGal');
   await settled(page);
-  const standard = await page.evaluate(() => window.__zspace.stats());
+  const standard = await page.evaluate(() => window.__lssViewer.stats());
   expect(standard.points).toBeLessThanOrEqual(400_000);
   await page.click('#q1');
   await settled(page);
-  const light = await page.evaluate(() => window.__zspace.stats());
+  const light = await page.evaluate(() => window.__lssViewer.stats());
   expect(light.budget).toBe(150_000);
   expect(light.points).toBeLessThanOrEqual(150_000);
   await page.click('#q3');
   await settled(page);
-  const high = await page.evaluate(() => window.__zspace.stats());
+  const high = await page.evaluate(() => window.__lssViewer.stats());
   expect(high.budget).toBe(1_000_000);
   expect(high.points).toBeGreaterThanOrEqual(light.points);
 });
@@ -246,31 +246,31 @@ test('LRU keeps the GPU within budget x 2.2 (7.3)', async ({ page }) => {
     await page.evaluate((v) => { location.hash = v; }, `#v=${c},0.3,0.5,150`);
     await settled(page);
   }
-  const s = await page.evaluate(() => window.__zspace.stats());
+  const s = await page.evaluate(() => window.__lssViewer.stats());
   expect(s.cachedPoints).toBeLessThanOrEqual(50_000 * 2.2 + 4096 * 8);
 });
 
 test('the URL hash holds the view and restores it (7.5)', async ({ page }) => {
   await page.goto(`/${VIEW}`);
   await settled(page);
-  expect(await page.evaluate(() => window.__zspace.camera.dist)).toBe(700);
+  expect(await page.evaluate(() => window.__lssViewer.camera.dist)).toBe(700);
   await page.locator('#sky').hover();
   await page.mouse.wheel(0, 300);
   await page.waitForTimeout(700);
   const hash = await page.evaluate(() => location.hash);
   expect(hash).toMatch(/^#v=/);
-  const dist = await page.evaluate(() => window.__zspace.camera.dist);
+  const dist = await page.evaluate(() => window.__lssViewer.camera.dist);
   expect(dist).toBeGreaterThan(700);
   await page.reload();
   await settled(page);
-  expect(await page.evaluate(() => window.__zspace.camera.dist)).toBeCloseTo(dist, 1);
+  expect(await page.evaluate(() => window.__lssViewer.camera.dist)).toBeCloseTo(dist, 1);
 });
 
 test('drag rotates and right drag pans (U1)', async ({ page }) => {
   await page.goto(`/${VIEW}`);
   await settled(page);
   const read = () => page.evaluate(() => {
-    const c = window.__zspace.camera as unknown as { yaw: number; target: number[] };
+    const c = window.__lssViewer.camera as unknown as { yaw: number; target: number[] };
     return { yaw: c.yaw, target: [...c.target] };
   });
   const a = await read();
@@ -305,8 +305,8 @@ test('fixed view, mesh only, matches its reference image', async ({ page }) => {
 
 test('?bench=1 plays the camera path and reports the numbers (section 11)', async ({ page }) => {
   await page.goto('/?bench=1&seconds=3&budget=150000');
-  await page.waitForFunction(() => window.__zspace?.bench !== null, undefined, { timeout: 60_000 });
-  const b = await page.evaluate(() => window.__zspace.bench!);
+  await page.waitForFunction(() => window.__lssViewer?.bench !== null, undefined, { timeout: 60_000 });
+  const b = await page.evaluate(() => window.__lssViewer.bench!);
   console.log(`bench (software rendering): ${JSON.stringify(b)}`);
   expect(b.frames).toBeGreaterThan(0);
   expect(b.avgPoints).toBeGreaterThan(0);
@@ -338,7 +338,7 @@ test.describe('phone layout', () => {
     await expect(page.locator('#slab')).toBeVisible();
     await page.click('#grip');
     await expect(page.locator('#q2')).toHaveText('標準 25万');
-    const s = await page.evaluate(() => ({ b: window.__zspace.stats().budget, w: document.documentElement.scrollWidth }));
+    const s = await page.evaluate(() => ({ b: window.__lssViewer.stats().budget, w: document.documentElement.scrollWidth }));
     expect(s.b).toBe(250_000);
     expect(s.w).toBeLessThanOrEqual(390);
   });

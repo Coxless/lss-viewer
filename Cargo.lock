@@ -359,6 +359,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
+name = "lss-viewer-cli"
+version = "0.1.0"
+dependencies = [
+ "lss-viewer-core",
+ "rayon",
+ "serde_json",
+]
+
+[[package]]
+name = "lss-viewer-core"
+version = "0.1.0"
+dependencies = [
+ "cdshealpix",
+ "csv",
+ "fast-surface-nets",
+ "flate2",
+ "libm",
+ "rand_chacha",
+ "rand_core",
+ "rayon",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "lss-viewer-wasm"
+version = "0.1.0"
+dependencies = [
+ "js-sys",
+ "lss-viewer-core",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "mapproj"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -906,39 +942,3 @@ name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
-
-[[package]]
-name = "zspace-cli"
-version = "0.1.0"
-dependencies = [
- "rayon",
- "serde_json",
- "zspace-core",
-]
-
-[[package]]
-name = "zspace-core"
-version = "0.1.0"
-dependencies = [
- "cdshealpix",
- "csv",
- "fast-surface-nets",
- "flate2",
- "libm",
- "rand_chacha",
- "rand_core",
- "rayon",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "zspace-wasm"
-version = "0.1.0"
-dependencies = [
- "js-sys",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "zspace-core",
-]

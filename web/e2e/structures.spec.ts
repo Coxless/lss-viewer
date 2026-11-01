@@ -4,9 +4,9 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const CLI = new URL('../../target/release/zspace-cli', import.meta.url).pathname;
+const CLI = new URL('../../target/release/lss-viewer-cli', import.meta.url).pathname;
 const CATALOG = new URL('../test/structures-test.json', import.meta.url).pathname;
-const dir = mkdtempSync(join(tmpdir(), 'zspace-structures-'));
+const dir = mkdtempSync(join(tmpdir(), 'lss-viewer-structures-'));
 const dataset = join(dir, 'dataset');
 const VIEW = '#v=-200,-20,120,0,0.9,600';
 
@@ -29,9 +29,9 @@ async function open(page: Page, hash = VIEW) {
 }
 
 async function settled(page: Page) {
-  await page.waitForFunction(() => window.__zspace?.idle() && !window.__zspace.camera.flying, undefined, { timeout: 90_000 });
+  await page.waitForFunction(() => window.__lssViewer?.idle() && !window.__lssViewer.camera.flying, undefined, { timeout: 90_000 });
   await page.waitForTimeout(250);
-  await page.waitForFunction(() => window.__zspace.idle() && !window.__zspace.camera.flying, undefined, { timeout: 90_000 });
+  await page.waitForFunction(() => window.__lssViewer.idle() && !window.__lssViewer.camera.flying, undefined, { timeout: 90_000 });
 }
 
 /** The canvas alone: the panel and the readout on top of it change with the cache. */
@@ -44,7 +44,7 @@ async function picture(page: Page) {
 
 const row = (page: Page, id: string) => page.locator(`[data-structure="${id}"]`);
 const check = (page: Page, id: string) => row(page, id).locator('input[type=checkbox]');
-const highlighted = (page: Page) => page.evaluate(() => window.__zspace.stats().highlighted);
+const highlighted = (page: Page) => page.evaluate(() => window.__lssViewer.stats().highlighted);
 
 test('structures: a check colours the map, names it, and fetches the density once', async ({ page }) => {
   const errors: string[] = [];
@@ -61,7 +61,7 @@ test('structures: a check colours the map, names it, and fetches the density onc
   await check(page, 'box').check();
   await settled(page);
   expect(served.filter((f) => f === 'density.bin.gz')).toHaveLength(1);
-  expect(await page.evaluate(() => window.__zspace.stats().hasDensity)).toBe(true);
+  expect(await page.evaluate(() => window.__lssViewer.stats().hasDensity)).toBe(true);
   const after = await picture(page);
   expect(after.equals(before)).toBe(false);
   await expect(page.locator('.label.structure', { hasText: 'テストの壁' })).toBeVisible();
@@ -135,14 +135,14 @@ test('structures: flying checks the structure, a wall as a fan and a cluster as 
   await row(page, 'box').locator('.st-fly').click();
   await settled(page);
   expect(await highlighted(page)).toEqual(['box']);
-  const slab = await page.evaluate(() => window.__zspace.stats().slab);
+  const slab = await page.evaluate(() => window.__lssViewer.stats().slab);
   expect(slab?.thickness).toBe(30);
   await expect(page.locator('#slabTxt')).toHaveText('厚さ 30 Mpc/h');
 
   await row(page, 's1').locator('.st-fly').click();
   await settled(page);
   expect((await highlighted(page)).sort()).toEqual(['box', 's1']);
-  expect(await page.evaluate(() => window.__zspace.stats().slab)).toBeNull();
+  expect(await page.evaluate(() => window.__lssViewer.stats().slab)).toBeNull();
   await expect(page.locator('#slabTxt')).toHaveText('オフ');
 });
 
@@ -165,7 +165,7 @@ test('structures: the explanation opens with sources, sections fold, mock data h
   await expect(list).toBeVisible();
 
   await page.goto('/');
-  await page.waitForFunction(() => window.__zspace?.idle(), undefined, { timeout: 90_000 });
+  await page.waitForFunction(() => window.__lssViewer?.idle(), undefined, { timeout: 90_000 });
   await expect(page.locator('#structuresSec')).toBeHidden();
 });
 

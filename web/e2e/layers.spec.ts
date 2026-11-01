@@ -4,8 +4,8 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const CLI = new URL('../../target/release/zspace-cli', import.meta.url).pathname;
-const dir = mkdtempSync(join(tmpdir(), 'zspace-layers-'));
+const CLI = new URL('../../target/release/lss-viewer-cli', import.meta.url).pathname;
+const dir = mkdtempSync(join(tmpdir(), 'lss-viewer-layers-'));
 const dataset = join(dir, 'dataset');
 
 // A small dataset with a VAST-format catalog. Served without Range support on purpose.
@@ -34,9 +34,9 @@ test('layers: VAST list first, its surface on demand, and no Range support is su
     route.fulfill({ status: 200, body: readFileSync(join(dataset, name)), contentType: 'application/octet-stream' });
   });
   await page.goto('/?data=remote/');
-  await page.waitForFunction(() => window.__zspace?.idle() && window.__zspace.stats().voids > 0, undefined, { timeout: 60_000 });
+  await page.waitForFunction(() => window.__lssViewer?.idle() && window.__lssViewer.stats().voids > 0, undefined, { timeout: 60_000 });
 
-  expect(await page.evaluate(() => window.__zspace.stats().points)).toBeGreaterThan(1000);
+  expect(await page.evaluate(() => window.__lssViewer.stats().points)).toBeGreaterThan(1000);
   // Starts on the density surface and its own list; nothing from VAST is fetched yet.
   expect(served).not.toContain('shells-vast.bin.gz');
   expect(served).not.toContain('voids-vast.json');
@@ -95,7 +95,7 @@ test('a surface that is slow to load says so, and one that fails can be retried'
     await route.fulfill({ status: 200, body: readFileSync(join(dataset, name)), contentType: 'application/octet-stream' });
   });
   await page.goto('/?data=remote/');
-  await page.waitForFunction(() => window.__zspace?.idle(), undefined, { timeout: 60_000 });
+  await page.waitForFunction(() => window.__lssViewer?.idle(), undefined, { timeout: 60_000 });
   const row = page.locator('#layers .layer').nth(1);
   await row.locator('input[type=checkbox]').check();
   await expect(row.locator('.status')).toHaveText('読み込み中');
@@ -104,7 +104,7 @@ test('a surface that is slow to load says so, and one that fails can be retried'
   await expect(row.locator('.status')).toHaveText('');
   await expect(row.locator('input[type=checkbox]')).not.toBeChecked();
   await row.locator('input[type=checkbox]').check();
-  await page.waitForFunction(() => window.__zspace.idle() && window.__zspace.stats().layersOn.vast === true, undefined, { timeout: 30_000 });
+  await page.waitForFunction(() => window.__lssViewer.idle() && window.__lssViewer.stats().layersOn.vast === true, undefined, { timeout: 30_000 });
   await expect(row.locator('.status')).toHaveText('');
 });
 

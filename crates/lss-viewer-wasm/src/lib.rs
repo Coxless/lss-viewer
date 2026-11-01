@@ -1,14 +1,14 @@
-//! Browser bindings for zspace-core: CSV import (U9), mock catalogs, and rebuilding the
+//! Browser bindings for lss-viewer-core: CSV import (U9), mock catalogs, and rebuilding the
 //! surface when the threshold changes (U5). Runs in a Web Worker on one thread, because
 //! static hosts such as GitHub Pages cannot set the headers that shared memory needs.
 
 use js_sys::{Function, Object, Reflect, Uint8Array};
 use wasm_bindgen::prelude::*;
-use zspace_core::catalog::{read_csv, AttrMap};
-use zspace_core::dataset::{self, Dataset, Options};
-use zspace_core::density::{DensityGrid, GridSpec};
-use zspace_core::format::Source;
-use zspace_core::{mock, shells, voids};
+use lss_viewer_core::catalog::{read_csv, AttrMap};
+use lss_viewer_core::dataset::{self, Dataset, Options};
+use lss_viewer_core::density::{DensityGrid, GridSpec};
+use lss_viewer_core::format::Source;
+use lss_viewer_core::{mock, shells, voids};
 
 /// Fewer rows than this cannot show large-scale structure.
 const MIN_ROWS: usize = 5000;

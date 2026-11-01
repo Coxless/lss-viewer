@@ -1,7 +1,7 @@
 // Runs the prototype's compiled gen_mock and prints the statistics that the
-// Rust mock generator (crates/zspace-core/src/mock.rs) is compared against.
+// Rust mock generator (crates/lss-viewer-core/src/mock.rs) is compared against.
 import { readFileSync, writeFileSync } from 'node:fs';
-const html = readFileSync(new URL('../../prototype/zspace-prototype.html', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../../prototype/lss-viewer-prototype.html', import.meta.url), 'utf8');
 const b64 = /WASM_B64 = "([^"]+)"/.exec(html)[1];
 const { instance } = await WebAssembly.instantiate(Buffer.from(b64, 'base64'), {});
 const e = instance.exports;
