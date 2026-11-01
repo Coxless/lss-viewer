@@ -47,21 +47,15 @@
     <section class="sec">
       <h2>スライス <em id="slabTxt">オフ</em></h2>
       <input type="range" id="slab" min="0" max="100" value="0" aria-label="スライスの厚さ">
-      <div class="row"><button class="btn" id="slabAlign">今の視線に合わせる</button></div>
-      <p>厚さを薄くすると、論文でよく見る2Dの扇形図と同じ見え方になります。少しずつ厚くすると、穴が泡の形をしていることがわかります。</p>
+      <div class="row"><button class="btn" id="slabFan">2Dの扇形図にする</button><button class="btn" id="slabAlign">今の視線に合わせる</button></div>
+      <p>「2Dの扇形図にする」では、私たちを通る薄い板を真上から見ます。論文でよく見る図と同じ見え方です。少しずつ厚くすると、穴が泡の形をしていることがわかります。</p>
     </section>
 
     <section class="sec">
       <h2>構造レイヤー</h2>
       <div class="layers" id="layers"></div>
+      <p id="surveyNote" hidden></p>
       <label class="check"><input type="checkbox" id="showFrame" checked> 観測範囲の枠と距離目盛り</label>
-    </section>
-
-    <section class="sec" id="thrSection">
-      <h2>ボイドの境界 <em id="thrTxt">δ = −0.60</em></h2>
-      <input type="range" id="thr" min="-85" max="-30" step="5" value="-60" aria-label="ボイド境界の密度しきい値">
-      <div class="status" id="thrStatus"></div>
-      <p>平均密度より何割少ない所を「空洞の壁」とみなすか。−0.60は平均の4割以下の領域です。</p>
     </section>
 
     <section class="sec">

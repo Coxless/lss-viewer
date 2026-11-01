@@ -43,14 +43,14 @@ vec3 octDecode(vec2 e){
 void main(){ vN = octDecode(aOct); vW = uC + aQ * uH; gl_Position = uVP * vec4(vW, 1.0); }`;
 const MESH_FS = `#version 300 es
 precision highp float; in vec3 vN; in vec3 vW; out vec4 o;
-uniform vec3 uEye; uniform float uOp, uFog, uFogD;
+uniform vec3 uEye; uniform vec3 uColor; uniform float uOp, uFog, uFogD;
 ${SLAB}
 void main(){
   if (outSlab(vW)) discard;
   vec3 v = normalize(uEye - vW); float f = 1.0 - abs(dot(normalize(vN), v));
   float d = distance(vW, uEye); float fog = clamp(1.0 - (d - uFogD) / uFog, 0.12, 1.0);
   float a = uOp * (0.025 + 0.75 * pow(f, 3.5)) * fog;
-  vec3 c = mix(vec3(0.30, 0.62, 0.78), vec3(0.55, 0.88, 0.97), f);
+  vec3 c = mix(uColor * 0.7, uColor, f);
   o = vec4(c * a, a);
 }`;
 
@@ -77,8 +77,7 @@ export interface FrameParams {
   showFrame: boolean;
   visible: number[];
   hierarchy: Hierarchy | null;
-  /** Layer id to effective opacity. */
-  meshes: { id: string; opacity: number }[];
+  meshes: { id: string; opacity: number; color: Vec3 }[];
   frameNumber: number;
 }
 
@@ -91,6 +90,7 @@ export class Renderer {
   private readonly selectionLines: Lines;
   private readonly observerLines: Lines;
   private readonly meshes = new Map<string, Mesh>();
+  private selectionColor: Vec3 = [0.55, 0.88, 0.97];
 
   constructor(private readonly gl: WebGL2RenderingContext) {
     this.points = this.program(POINT_VS, POINT_FS);
@@ -152,8 +152,9 @@ export class Renderer {
     this.setLines(this.frameLines, data);
   }
 
-  setSelection(data: number[]) {
+  setSelection(data: number[], color?: Vec3) {
     this.setLines(this.selectionLines, data);
+    if (color) this.selectionColor = color;
   }
 
   addTile(id: number, buffer: ArrayBuffer, frame: number) {
@@ -252,10 +253,11 @@ export class Renderer {
     gl.uniform1f(mesh.u.uFogD, f.fogStart);
     gl.uniform4fv(mesh.u.uSlab, slabVec);
     gl.uniform3fv(mesh.u.uSlabC, slabCenter);
-    for (const { id, opacity } of f.meshes) {
+    for (const { id, opacity, color } of f.meshes) {
       const m = this.meshes.get(id);
       if (!m || !m.n || opacity <= 0.001) continue;
       gl.uniform1f(mesh.u.uOp, opacity);
+      gl.uniform3fv(mesh.u.uColor, color);
       gl.uniform3fv(mesh.u.uC, m.center);
       gl.uniform1f(mesh.u.uH, m.half);
       gl.bindVertexArray(m.vao);
@@ -290,7 +292,8 @@ export class Renderer {
     if (this.selectionLines.n) {
       gl.useProgram(line.p);
       gl.uniformMatrix4fv(line.u.uVP, false, vp);
-      gl.uniform4f(line.u.uCol, 0.5, 0.83, 0.9, 0.55);
+      const c = this.selectionColor;
+      gl.uniform4f(line.u.uCol, c[0], c[1], c[2], 0.55);
       gl.bindVertexArray(this.selectionLines.vao);
       gl.drawArrays(gl.LINES, 0, this.selectionLines.n);
     }

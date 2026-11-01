@@ -115,6 +115,6 @@ scope.onmessage = async (ev: MessageEvent<ToWorker>) => {
     await handle(m);
   } catch (err) {
     const text = err instanceof Error ? err.message : String(err);
-    post({ type: 'error', gen: m.gen, text, request: m.type, id: m.type === 'tile' ? m.id : undefined });
+    post({ type: 'error', gen: m.gen, text, request: m.type, id: m.type === 'tile' ? m.id : undefined, layerId: 'layerId' in m ? m.layerId : undefined });
   }
 };

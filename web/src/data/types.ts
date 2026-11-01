@@ -16,7 +16,7 @@ export interface Layer {
   kind: 'isosurface' | 'list' | 'polyline' | 'markers';
   name: string;
   file: string;
-  params: { threshold?: number; polarity?: 'low' | 'high'; vertices?: number; indices?: number; method?: string };
+  params: { threshold?: number; polarity?: 'low' | 'high'; color?: string; vertices?: number; indices?: number; method?: string; surface?: string };
 }
 
 export interface VoidEntry {

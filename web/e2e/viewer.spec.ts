@@ -7,7 +7,8 @@ declare global {
       stats(): {
         points: number; nodes: number; cached: number; cachedPoints: number; transferred: number; gpuBytes: number;
         firstDraw: { ms: number; bytes: number } | null; frame: number; budget: number; voids: number; source: string | null;
-        threshold: number; selected: number;
+        threshold: number; selected: number; listId: string | null;
+        slab: { normal: number[]; center: number[]; thickness: number } | null; layersOn: Record<string, boolean>;
       };
       camera: { dist: number; flying: boolean; target: number[] };
       bench: { frames: number; fps: number; fpsLow: number; avgPoints: number; transferredMB: number; budget: number } | null;
@@ -100,6 +101,58 @@ test('density is not fetched until the threshold moves, then the surface and lis
   await settled(page);
   expect(requests.filter((u) => u.includes('density')).length).toBe(1);
   expect(errors).toEqual([]);
+});
+
+test('moving the threshold with the layer off turns it on and ticks its box (U5)', async ({ page }) => {
+  await page.goto('/');
+  await settled(page);
+  const box = page.locator('#layers .layer').first().locator('input[type=checkbox]');
+  await box.uncheck();
+  await settled(page);
+  expect((await page.evaluate(() => window.__zspace.stats())).layersOn.voids).toBe(false);
+  await page.locator('#thr').fill('-50');
+  await expect(box).toBeChecked();
+  await settled(page);
+  expect((await page.evaluate(() => window.__zspace.stats())).layersOn.voids).toBe(true);
+});
+
+test('the threshold sits inside the layer it changes', async ({ page }) => {
+  await page.goto('/');
+  await settled(page);
+  await expect(page.locator('#layers .layer').first().locator('#thr')).toHaveCount(1);
+});
+
+test('the fan button cuts through the observer and looks straight at the slab (U4)', async ({ page }) => {
+  await page.goto('/');
+  await settled(page);
+  await page.click('#slabFan');
+  await expect(page.locator('#slabTxt')).toHaveText('厚さ 23 Mpc/h');
+  await settled(page);
+  const r = await page.evaluate(() => {
+    const c = window.__zspace.camera as unknown as { eye(): number[]; target: number[] };
+    return { slab: window.__zspace.stats().slab!, eye: c.eye(), target: c.target };
+  });
+  const dot = (a: number[], b: number[]) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  // The plane contains the observer at the origin.
+  expect(Math.abs(dot(r.slab.normal, r.slab.center))).toBeLessThan(1e-6);
+  // The camera looks along the normal, within the pitch limit.
+  const view = [r.eye[0] - r.target[0], r.eye[1] - r.target[1], r.eye[2] - r.target[2]];
+  const cos = dot(view, r.slab.normal) / Math.hypot(view[0], view[1], view[2]);
+  expect(cos).toBeGreaterThan(0.99);
+});
+
+test('using the panel dismisses the hint', async ({ page }) => {
+  await page.goto('/');
+  await settled(page);
+  await expect(page.locator('#hint')).toHaveCSS('opacity', '1');
+  await page.click('#home');
+  await expect(page.locator('#hint')).toHaveCSS('opacity', '0');
+});
+
+test('no survey note for a survey that fills its box', async ({ page }) => {
+  await page.goto('/');
+  await settled(page);
+  await expect(page.locator('#surveyNote')).toBeHidden();
 });
 
 test('display modes change what is drawn (U2)', async ({ page }) => {
@@ -287,5 +340,14 @@ test.describe('phone layout', () => {
     const s = await page.evaluate(() => ({ b: window.__zspace.stats().budget, w: document.documentElement.scrollWidth }));
     expect(s.b).toBe(250_000);
     expect(s.w).toBeLessThanOrEqual(390);
+  });
+
+  test('the fan button closes the sheet so the view can be seen', async ({ page }) => {
+    await page.goto('/');
+    await settled(page);
+    await page.click('#grip');
+    await page.click('#slabFan');
+    await expect(page.locator('#sheet')).toHaveClass(/collapsed/);
+    await expect(page.locator('#slabTxt')).toBeHidden();
   });
 });

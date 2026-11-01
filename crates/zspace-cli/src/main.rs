@@ -249,16 +249,16 @@ fn cmd_import_vast(args: &Args) -> Result<(), String> {
 
     let name = args.get("name").unwrap_or("VAST VoidFinder");
     meta.layers.retain(|l| l.id != "vast" && l.id != "vast-list");
-    // The viewer starts on the first surface and the first list. The VAST list comes first
-    // because it is the better catalog. Its surface goes after the density surface because
-    // it is several times larger, and would not fit the first-load budget.
-    meta.layers.insert(0, layers::list("vast-list", name, VOIDS, vast::METHOD_VAST));
+    // The viewer starts on the first surface and its list. VAST goes last because its
+    // surface is several times larger and would not fit the first-load budget.
+    meta.layers.push(layers::list("vast-list", name, VOIDS, vast::METHOD_VAST, "vast"));
     meta.layers.push(layers::isosurface(
         "vast",
         name,
         SHELLS,
         0.0,
         shells::Polarity::Low,
+        layers::COLOR_VAST,
         mesh.positions.len(),
         mesh.indices.len(),
     ));

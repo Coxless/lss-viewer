@@ -17,4 +17,4 @@ export type ToMain =
   | { type: 'mesh'; gen: number; layerId: string; mesh: MeshData }
   | { type: 'list'; gen: number; layerId: string; items: VoidEntry[] }
   | { type: 'remeshed'; gen: number; threshold: number; voids: VoidEntry[]; truncated: boolean }
-  | { type: 'error'; gen: number; text: string; request: ToWorker['type']; id?: number };
+  | { type: 'error'; gen: number; text: string; request: ToWorker['type']; id?: number; layerId?: string };

@@ -27,8 +27,8 @@ Rust 側の実装は `crates/zspace-core/src/format.rs`、`shells.rs`、`density
   "density": { "file": "density.bin.gz", "dims": [78, 125, 69], "origin": [0, 0, 0], "cell": 6.09, "sigmaCells": 1.4, "encoding": "uint8-log" },
   "layers": [
     { "id": "voids", "kind": "isosurface", "name": "ボイド", "file": "shells.bin.gz",
-      "params": { "threshold": -0.6, "polarity": "low", "vertices": 18402, "indices": 97638 } },
-    { "id": "void-list", "kind": "list", "name": "見つかったボイド", "file": "voids.json", "params": { "method": "simple" } }
+      "params": { "threshold": -0.6, "polarity": "low", "color": "#8ce0f7", "vertices": 18402, "indices": 97638 } },
+    { "id": "void-list", "kind": "list", "name": "見つかったボイド", "file": "voids.json", "params": { "method": "simple", "surface": "voids" } }
   ],
   "footprint": { "healpixNside": 128, "file": "footprint.bin", "raRange": [130, 240], "decRange": [0, 60], "fullSky": false,
                  "rectangular": true, "centroid": [-200, 50, 180] }
@@ -36,12 +36,13 @@ Rust 側の実装は `crates/zspace-core/src/format.rs`、`shells.rs`、`density
 ```
 
 - `density`、`footprint` は `zspace-cli tile` の出力にはありません。`layers` は空になります。
-- `layers` の順序に意味があります。ビューアは最初の `isosurface` と最初の `list` を初期表示にします。
+- `layers` の順序に意味があります。ビューアは最初の `isosurface` と、それに対応する `list` を初期表示にします。
+- `params.color` は等値面の色、`params.surface` は一覧に対応する等値面の `id` です。ビューアは表示中の等値面に合わせて一覧を切り替えます。
 - `kind` は `isosurface`、`list`、`polyline`、`markers`。UI の文言は `name` から作ります。
 - `raRange[0] > raRange[1]` は赤経 0° をまたぐ範囲です。
 - `rectangular` が偽のとき（領域が飛び地のときなど）は、`outline` に境界線分を `[ra0, dec0, ra1, dec1, ...]`（度）で持ちます。ビューアはこれを枠として描きます。
 - `centroid` は銀河の平均位置で、初期視点の注視点に使います。
-- `zspace-cli import-vast` は、一覧を `layers` の先頭に、メッシュを末尾に追加します。VAST のメッシュは 1 MB を超えるので、表示をオンにしたときに取得します。
+- `zspace-cli import-vast` は、一覧とメッシュを `layers` の末尾に追加します。VAST のメッシュは 1 MB を超えるので、表示をオンにしたときに取得します。
 - `source.mock` が真のデータは、画面で模擬データと明示します。
 
 ## hierarchy.bin

@@ -69,6 +69,12 @@ export function smoothstep(a: number, b: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** `#rrggbb` to components in 0..1. */
+export function hexColor(hex: string): Vec3 {
+  const n = parseInt(hex.slice(1), 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+
 /** Point on the sky at distance r; angles in degrees. */
 export function sky(r: number, ra: number, dec: number): Vec3 {
   const a = (ra * Math.PI) / 180;

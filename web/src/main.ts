@@ -7,7 +7,7 @@ import type { ToMain, ToWorker } from './data/protocol';
 import type { Layer, Metadata, VoidEntry } from './data/types';
 import { Renderer } from './gl/renderer';
 import { selectNodes, type Slab } from './lod/select';
-import { frustumPlanes, lookAt, multiply, perspective, smoothstep, V, type Plane, type Vec3 } from './math';
+import { frustumPlanes, hexColor, lookAt, multiply, perspective, smoothstep, V, type Plane, type Vec3 } from './math';
 import { buildFrame, scaleBar, sphereLines, type Tick } from './ui/frame';
 import { setupPanel, type Panel } from './ui/panel';
 
@@ -18,6 +18,10 @@ const REMESH_DELAY_MS = 120;
 const HOME_PITCH = 0.95;
 const INSIDE_DIST = 0.8;
 const LARGE_MESH_VERTICES = 30_000;
+const DEFAULT_LAYER_COLOR = '#8ce0f7';
+/** A fan view fills the screen height with the survey's depth. */
+const FAN_DIST_FACTOR = 1.2;
+const MAX_PITCH = 1.52;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -61,6 +65,7 @@ const state = {
   visible: [] as number[],
   visiblePoints: 0,
   requested: new Set<number>(),
+  meshLoading: new Set<string>(),
   failed: new Map<number, number>(),
   firstDraw: null as null | { ms: number; bytes: number },
   remeshPending: false,
@@ -100,6 +105,8 @@ worker.onmessage = (ev: MessageEvent<ToMain>) => {
       break;
     case 'mesh':
       renderer.setMesh(m.layerId, m.mesh);
+      state.meshLoading.delete(m.layerId);
+      panel.setLayerStatus(m.layerId, '');
       markDirty();
       break;
     case 'list':
@@ -136,6 +143,12 @@ function onWorkerError(m: Extract<ToMain, { type: 'error' }>) {
     return;
   }
   if (m.request === 'remesh') state.remeshPending = false;
+  if (m.request === 'layerMesh' && m.layerId) {
+    // Leave the layer off, so turning it on again retries.
+    state.meshLoading.delete(m.layerId);
+    panel.setLayerStatus(m.layerId, '');
+    setLayerOn(m.layerId, false);
+  }
   showVeil(false);
   panel.showError(m.text);
   panel.setThresholdStatus('');
@@ -150,6 +163,7 @@ function beginDataset() {
   state.visible = [];
   state.visiblePoints = 0;
   state.requested.clear();
+  state.meshLoading.clear();
   state.failed.clear();
   state.lists.clear();
   state.listId = null;
@@ -210,9 +224,10 @@ function onOpened(meta: Metadata, hierarchy: ArrayBuffer) {
     state.layerOn.set(l.id, l === surface);
     if (!state.layerOpacity.has(l.id)) state.layerOpacity.set(l.id, defaultOpacity(l));
   }
-  if (surface) send({ type: 'layerMesh', gen: state.gen, layerId: surface.id, file: surface.file });
-  const list = firstOfKind(meta, 'list');
+  if (surface) loadMesh(surface);
+  const list = (surface && listOfSurface(surface.id)) ?? firstOfKind(meta, 'list');
   state.listId = list?.id ?? null;
+  applyListColor();
   if (list) send({ type: 'layerList', gen: state.gen, layerId: list.id, file: list.file });
 
   // A view in the URL belongs to the dataset the page opened with, not to one loaded later.
@@ -222,7 +237,7 @@ function onOpened(meta: Metadata, hierarchy: ArrayBuffer) {
   else goHome(false);
 
   panel.setDataset(meta, state.layerOn, state.layerOpacity, state.listId);
-  panel.renderList([], listMethod());
+  panel.renderList([], listMethod(), true);
   showVeil(false);
   markDirty();
 }
@@ -258,28 +273,96 @@ function currentVoids(): VoidEntry[] {
 function selectVoid(i: number, flyIn = false) {
   state.selected = i;
   const v = currentVoids()[i];
-  renderer.setSelection(v ? sphereLines(v.center, v.radius) : []);
+  renderer.setSelection(v ? sphereLines(v.center, v.radius) : [], hexColor(listColor()));
   panel.markSelected(i);
   if (v && flyIn) camera.flyTo(v.center as Vec3, v.radius * INSIDE_DIST, camera.yaw + 0.6, 0.2, performance.now());
   markDirty();
 }
 
-function chooseList(id: string) {
+function layerById(id: string | null) {
+  return state.meta?.layers.find((l) => l.id === id) ?? null;
+}
+
+function listOfSurface(id: string) {
+  return state.meta?.layers.find((l) => l.kind === 'list' && l.params.surface === id) ?? null;
+}
+
+function listColor(): string {
+  return layerById(layerById(state.listId)?.params.surface ?? null)?.params.color ?? DEFAULT_LAYER_COLOR;
+}
+
+function applyListColor() {
+  document.documentElement.style.setProperty('--list-color', listColor());
+}
+
+/** Shows a list. The list on screen always describes a surface the user can see. */
+function showList(id: string) {
+  if (state.listId === id) return;
   state.listId = id;
+  applyListColor();
   selectVoid(-1);
-  const layer = state.meta?.layers.find((l) => l.id === id);
+  const layer = layerById(id);
+  panel.setListChoice(id, layer?.name ?? '');
+  const method = layer?.params.method ?? 'simple';
   const items = state.lists.get(id);
-  if (items) panel.renderList(items, layer?.params.method ?? 'simple');
+  if (items) panel.renderList(items, method);
   else if (layer) {
-    panel.renderList([], layer.params.method ?? 'simple');
+    panel.renderList([], method, true);
     send({ type: 'layerList', gen: state.gen, layerId: id, file: layer.file });
   }
 }
 
+/** The user picked a list: its surface comes on with it. */
+function chooseList(id: string) {
+  showList(id);
+  const surface = layerById(id)?.params.surface;
+  if (surface && !state.layerOn.get(surface)) setLayerOn(surface, true);
+}
+
+function loadMesh(layer: Layer) {
+  if (renderer.hasMesh(layer.id) || state.meshLoading.has(layer.id)) return;
+  state.meshLoading.add(layer.id);
+  panel.setLayerStatus(layer.id, '読み込み中');
+  send({ type: 'layerMesh', gen: state.gen, layerId: layer.id, file: layer.file });
+}
+
 function setLayerOn(id: string, on: boolean) {
   state.layerOn.set(id, on);
-  const layer = state.meta?.layers.find((l) => l.id === id);
-  if (on && layer && !renderer.hasMesh(id)) send({ type: 'layerMesh', gen: state.gen, layerId: id, file: layer.file });
+  panel.setLayerChecked(id, on);
+  const layer = layerById(id);
+  if (on) {
+    if (layer) loadMesh(layer);
+    const list = listOfSurface(id);
+    if (list) showList(list.id);
+  } else if (layerById(state.listId)?.params.surface === id) {
+    // This list's surface went away: follow another visible surface, if there is one.
+    for (const [other, visible] of state.layerOn) {
+      const list = visible ? listOfSurface(other) : null;
+      if (list) {
+        showList(list.id);
+        break;
+      }
+    }
+  }
+  markDirty();
+}
+
+/** A thin slab through the observer and the view target, seen from straight above: the classic 2D fan. */
+function showFan(thickness: number) {
+  const fp = state.meta?.footprint;
+  let t = camera.target;
+  if (V.len(t) < 1) t = fp ? [...fp.centroid] : [1, 0, 0];
+  const out = V.norm(t);
+  let normal = V.sub([0, 0, 1], V.sc(out, out[2]));
+  if (V.len(normal) < 1e-3) normal = [1, 0, 0];
+  normal = V.norm(normal);
+  state.slab = { normal, center: [...t] as Vec3, thickness };
+
+  const depth = state.meta?.rRange[1] ?? state.ext;
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  const yaw = Math.hypot(normal[0], normal[1]) > 1e-3 ? Math.atan2(normal[1], normal[0]) : Math.atan2(-out[1], -out[0]);
+  const pitch = Math.min(MAX_PITCH, Math.asin(Math.min(1, normal[2])));
+  camera.flyTo(V.sc(out, depth / 2), depth * FAN_DIST_FACTOR * (aspect < 1 ? Math.max(1, 0.8 / aspect) : 1), yaw, pitch, performance.now());
   markDirty();
 }
 
@@ -306,13 +389,21 @@ const panel: Panel = setupPanel({
     const n = currentVoids().length;
     if (n) selectVoid((state.selected + 1) % n, true);
   },
-  onSelectVoid: (i) => selectVoid(i, true),
+  onSelectVoid: (i) => {
+    selectVoid(i, true);
+    if (isPhone) panel.openSheet(false);
+  },
   onChooseList: chooseList,
   onSlabThickness: (t) => {
     if (t === 0) state.slab = null;
     else if (state.slab) state.slab.thickness = t;
     else state.slab = { ...slabFromView(), thickness: t };
     markDirty();
+  },
+  onSlabFan: (t) => {
+    showFan(t);
+    // On a phone the open sheet would hide the view that was just asked for.
+    if (isPhone) panel.openSheet(false);
   },
   onSlabAlign: () => {
     const thickness = state.slab?.thickness ?? 0;
@@ -324,11 +415,12 @@ const panel: Panel = setupPanel({
     clearTimeout(remeshTimer);
     const surface = state.meta?.layers.find((l) => l.kind === 'isosurface' && l.params.polarity === 'low' && l.id === 'voids');
     if (!surface || !state.meta?.density) return;
+    // Moving the slider means the user wants to see this surface.
+    setLayerOn(surface.id, true);
     state.remeshPending = true;
     panel.setThresholdStatus('作り直し中');
     remeshTimer = window.setTimeout(() => {
       send({ type: 'remesh', gen: state.gen, layerId: surface.id, threshold: t });
-      if (!state.layerOn.get(surface.id)) setLayerOn(surface.id, true);
     }, REMESH_DELAY_MS);
   },
   onLayerOn: setLayerOn,
@@ -348,16 +440,22 @@ function slabFromView(): { normal: Vec3; center: Vec3 } {
   return { normal: V.norm(V.sub(camera.target, camera.eye())), center: [...camera.target] as Vec3 };
 }
 
+function hideHint() {
+  $('hint').style.opacity = '0';
+}
+
 attachControls(
   canvas,
   camera,
   markDirty,
   () => {
-    $('hint').style.opacity = '0';
+    hideHint();
     if (isPhone) panel.openSheet(false);
     markDirty();
   },
 );
+// Using the panel also counts as having found the controls.
+$('sheet').addEventListener('pointerdown', hideHint);
 addEventListener('resize', markDirty);
 
 // ---------------- labels ----------------
@@ -500,7 +598,7 @@ function draw(now: number) {
   const shellScale = state.mode === 'gal' ? 0 : state.mode === 'shell' ? 1 : 0.35 + 0.65 * zt;
   const meshes = meta.layers
     .filter((l) => l.kind === 'isosurface' && state.layerOn.get(l.id))
-    .map((l) => ({ id: l.id, opacity: (state.layerOpacity.get(l.id) ?? 0.6) * shellScale }));
+    .map((l) => ({ id: l.id, opacity: (state.layerOpacity.get(l.id) ?? 0.6) * shellScale, color: hexColor(l.params.color ?? DEFAULT_LAYER_COLOR) }));
 
   renderer.draw({
     vp,
@@ -567,7 +665,7 @@ addEventListener('hashchange', () => {
 // ---------------- test and bench hooks ----------------
 const hooks = {
   /** True when nothing is loading and no frame is pending. */
-  idle: () => !!state.meta && !state.dirty && state.requested.size === 0 && !state.remeshPending,
+  idle: () => !!state.meta && !state.dirty && state.requested.size === 0 && state.meshLoading.size === 0 && !state.remeshPending,
   stats: () => ({
     points: state.visiblePoints,
     nodes: state.visible.length,
@@ -582,6 +680,9 @@ const hooks = {
     source: state.meta?.source.name ?? null,
     threshold: state.threshold,
     selected: state.selected,
+    listId: state.listId,
+    slab: state.slab,
+    layersOn: Object.fromEntries(state.layerOn),
   }),
   camera,
   bench: null as null | Awaited<ReturnType<typeof runBench>>,

@@ -155,10 +155,11 @@ pub fn build(galaxies: &mut [Galaxy], source: Source, opts: &Options, progress: 
     let (shell_bytes, vertices, indices, truncated) = shell_bytes(&grid, opts.threshold, opts.max_triangles);
     ds.metadata.layers.push(layers::isosurface(
         VOID_LAYER,
-        "ボイド",
+        "ボイド（独自計算）",
         FILE_SHELLS,
         opts.threshold,
         Polarity::Low,
+        layers::COLOR_DENSITY,
         vertices,
         indices,
     ));
@@ -167,7 +168,7 @@ pub fn build(galaxies: &mut [Galaxy], source: Source, opts: &Options, progress: 
 
     progress("voids");
     ds.voids = voids::find_simple(&grid, opts.threshold, opts.max_voids);
-    ds.metadata.layers.push(layers::list(VOID_LIST_LAYER, "見つかったボイド", FILE_VOIDS, voids::METHOD_SIMPLE));
+    ds.metadata.layers.push(layers::list(VOID_LIST_LAYER, "見つかったボイド", FILE_VOIDS, voids::METHOD_SIMPLE, VOID_LAYER));
 
     ds.density_q = Some(grid.q);
     ds.footprint = Some(footprint.bits);

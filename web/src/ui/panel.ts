@@ -12,6 +12,7 @@ export interface PanelHandlers {
   onChooseList(id: string): void;
   onSlabThickness(t: number): void;
   onSlabAlign(): void;
+  onSlabFan(thickness: number): void;
   onThreshold(t: number): void;
   onLayerOn(id: string, on: boolean): void;
   onLayerOpacity(id: string, opacity: number): void;
@@ -34,7 +35,10 @@ export interface Readout {
 
 export interface Panel {
   setDataset(meta: Metadata, on: Map<string, boolean>, opacity: Map<string, number>, listId: string | null): void;
-  renderList(items: VoidEntry[], method: string): void;
+  renderList(items: VoidEntry[], method: string, loading?: boolean): void;
+  setListChoice(id: string, name: string): void;
+  setLayerChecked(id: string, on: boolean): void;
+  setLayerStatus(id: string, text: string): void;
   markSelected(i: number): void;
   resetSlab(): void;
   showError(text: string | null): void;
@@ -44,6 +48,9 @@ export interface Panel {
   updateScale(px: number, text: string): void;
 }
 
+const DEFAULT_COLOR = '#8ce0f7';
+/** Thickness about 23 Mpc/h on the logarithmic slider. */
+const FAN_SLIDER_DEFAULT = 38;
 const METHOD_LABEL: Record<string, string> = {
   simple: '簡易検出',
   'vast-voidfinder': 'VAST VoidFinder',
@@ -58,6 +65,54 @@ function segmented(ids: string[], onPick: (id: string) => void) {
       onPick(id);
     };
   }
+}
+
+function sliderRow(name: string, ...controls: HTMLElement[]): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'slider-row';
+  const label = document.createElement('span');
+  label.className = 'slider-name';
+  label.textContent = name;
+  row.append(label, ...controls);
+  return row;
+}
+
+/** The threshold belongs to the density surface, so it lives inside that layer's block. */
+function thresholdControls(threshold: number, onChange: (t: number) => void): HTMLElement[] {
+  const format = (t: number) => `δ = −${Math.abs(t).toFixed(2)}`;
+  const text = document.createElement('span');
+  text.className = 'slider-value';
+  text.id = 'thrTxt';
+  text.textContent = format(threshold);
+  const status = document.createElement('span');
+  status.className = 'status';
+  status.id = 'thrStatus';
+
+  const range = document.createElement('input');
+  range.type = 'range';
+  range.id = 'thr';
+  range.min = '-85';
+  range.max = '-30';
+  range.step = '5';
+  range.value = String(Math.round(threshold * 100));
+  range.setAttribute('aria-label', 'ボイド境界の密度しきい値');
+  range.oninput = () => {
+    const t = +range.value / 100;
+    text.textContent = format(t);
+    onChange(t);
+  };
+
+  const head = document.createElement('div');
+  head.className = 'slider-head';
+  const name = document.createElement('span');
+  name.className = 'slider-name';
+  name.textContent = '境界';
+  head.append(name, text, status);
+
+  const help = document.createElement('p');
+  help.className = 'layer-help';
+  help.textContent = '平均密度より何割少ない所を「空洞の壁」とみなすか。−0.60は平均の4割以下の領域です。';
+  return [head, range, help];
 }
 
 function formatCount(n: number): string {
@@ -86,12 +141,13 @@ export function setupPanel(h: PanelHandlers): Panel {
 
   const slab = $<HTMLInputElement>('slab');
   const slabText = $('slabTxt');
-  const applySlab = () => {
+  const showSlabThickness = () => {
     const v = +slab.value;
     const t = v === 0 ? 0 : Math.round(4 * Math.pow(100, v / 100));
     slabText.textContent = t === 0 ? 'オフ' : `厚さ ${t} Mpc/h`;
-    h.onSlabThickness(t);
+    return t;
   };
+  const applySlab = () => h.onSlabThickness(showSlabThickness());
   slab.oninput = applySlab;
   $('slabAlign').onclick = () => {
     h.onSlabAlign();
@@ -99,14 +155,14 @@ export function setupPanel(h: PanelHandlers): Panel {
     applySlab();
   };
 
-  const thr = $<HTMLInputElement>('thr');
-  const thrText = $('thrTxt');
-  const thrStatus = $('thrStatus');
-  thr.oninput = () => {
-    const t = +thr.value / 100;
-    thrText.textContent = `δ = −${Math.abs(t).toFixed(2)}`;
-    h.onThreshold(t);
+  $('slabFan').onclick = () => {
+    if (+slab.value === 0) slab.value = String(FAN_SLIDER_DEFAULT);
+    h.onSlabFan(showSlabThickness());
   };
+
+  const checks = new Map<string, HTMLInputElement>();
+  const statuses = new Map<string, HTMLElement>();
+  const listButtons = new Map<string, HTMLButtonElement>();
 
   $<HTMLInputElement>('showFrame').onchange = (e) => h.onShowFrame((e.target as HTMLInputElement).checked);
 
@@ -139,17 +195,30 @@ export function setupPanel(h: PanelHandlers): Panel {
       // Layers: names come from the metadata, so other structures need no UI changes.
       const box = $('layers');
       box.textContent = '';
+      checks.clear();
+      statuses.clear();
       for (const layer of meta.layers) {
         if (layer.kind !== 'isosurface') continue;
         const row = document.createElement('div');
         row.className = 'layer';
-        const label = document.createElement('label');
-        label.className = 'check';
+        row.dataset.layer = layer.id;
+
+        const head = document.createElement('label');
+        head.className = 'check';
         const check = document.createElement('input');
         check.type = 'checkbox';
         check.checked = on.get(layer.id) ?? false;
         check.onchange = () => h.onLayerOn(layer.id, check.checked);
-        label.append(check, ` ${layer.name}`);
+        const swatch = document.createElement('span');
+        swatch.className = 'swatch';
+        swatch.style.background = layer.params.color ?? DEFAULT_COLOR;
+        const status = document.createElement('span');
+        status.className = 'status';
+        head.append(check, swatch, ` ${layer.name} `, status);
+        checks.set(layer.id, check);
+        statuses.set(layer.id, status);
+        row.append(head);
+
         const range = document.createElement('input');
         range.type = 'range';
         range.min = '0';
@@ -157,33 +226,35 @@ export function setupPanel(h: PanelHandlers): Panel {
         range.value = String(Math.round((opacity.get(layer.id) ?? 0.6) * 100));
         range.setAttribute('aria-label', `${layer.name}の濃さ`);
         range.oninput = () => h.onLayerOpacity(layer.id, +range.value / 100);
-        row.append(label, range);
+        row.append(sliderRow('濃さ', range));
+
+        if (layer.id === 'voids' && meta.density) row.append(...thresholdControls(layer.params.threshold ?? -0.6, h.onThreshold));
         box.append(row);
       }
 
-      const canRemesh = !!meta.density && meta.layers.some((l) => l.id === 'voids');
-      $('thrSection').hidden = !canRemesh;
-      thr.value = String(Math.round((meta.layers.find((l) => l.id === 'voids')?.params.threshold ?? -0.6) * 100));
-      thrText.textContent = `δ = −${Math.abs(+thr.value / 100).toFixed(2)}`;
-      thrStatus.textContent = '';
+      const fp = meta.footprint;
+      const notes: string[] = [];
+      if (fp && !fp.fullSky && !fp.rectangular) notes.push('細い帯状の領域ではボイドの形を計算できないため、銀河の点だけを表示します。');
+      if (meta.layers.some((l) => l.params.method === 'vast-voidfinder')) notes.push('VAST のカタログは SDSS DR7 の主領域だけを対象にしています。');
+      const note = $('surveyNote');
+      note.hidden = notes.length === 0;
+      note.textContent = notes.join('');
 
       // More than one list: choose between them.
       const lists = meta.layers.filter((l) => l.kind === 'list');
       const choose = $('listChoice');
       choose.textContent = '';
       choose.hidden = lists.length < 2;
+      listButtons.clear();
       if (lists.length > 1) {
-        const buttons = lists.map((l) => {
+        for (const l of lists) {
           const b = document.createElement('button');
           b.textContent = METHOD_LABEL[l.params.method ?? ''] ?? l.name;
           b.setAttribute('aria-pressed', String(l.id === listId));
-          b.onclick = () => {
-            for (const o of buttons) o.setAttribute('aria-pressed', String(o === b));
-            h.onChooseList(l.id);
-          };
-          return b;
-        });
-        choose.append(...buttons);
+          b.onclick = () => h.onChooseList(l.id);
+          listButtons.set(l.id, b);
+          choose.append(b);
+        }
       }
       $('listName').textContent = lists.find((l) => l.id === listId)?.name ?? 'ボイド';
       $('dataNote').textContent = meta.source.mock
@@ -191,7 +262,22 @@ export function setupPanel(h: PanelHandlers): Panel {
         : `${meta.source.name}：${meta.source.rows.toLocaleString('ja-JP')} 行のうち ${meta.source.dropped.toLocaleString('ja-JP')} 行を除外しました。`;
     },
 
-    renderList(items, method) {
+    setListChoice(id, name) {
+      for (const [other, b] of listButtons) b.setAttribute('aria-pressed', String(other === id));
+      $('listName').textContent = name;
+    },
+
+    setLayerChecked(id, on) {
+      const c = checks.get(id);
+      if (c) c.checked = on;
+    },
+
+    setLayerStatus(id, text) {
+      const s = statuses.get(id);
+      if (s) s.textContent = text;
+    },
+
+    renderList(items, method, loading = false) {
       const ul = $('voidList');
       ul.textContent = '';
       lastList = items.map((v, i) => {
@@ -211,7 +297,7 @@ export function setupPanel(h: PanelHandlers): Panel {
         ul.append(li);
         return b;
       });
-      $('vCount').textContent = `${items.length} 個`;
+      $('vCount').textContent = loading ? '読み込み中' : `${items.length} 個`;
       $('vMethod').textContent = `検出方法：${METHOD_LABEL[method] ?? method}`;
     },
 
@@ -231,7 +317,8 @@ export function setupPanel(h: PanelHandlers): Panel {
     },
 
     setThresholdStatus(text) {
-      thrStatus.textContent = text;
+      const status = document.getElementById('thrStatus');
+      if (status) status.textContent = text;
     },
 
     openSheet,
