@@ -50,6 +50,15 @@ test('the threshold also works on a dataset built in the browser (U5 + U9)', asy
   await page.waitForFunction((b) => window.__zspace.idle() && window.__zspace.stats().gpuBytes !== b, before, { timeout: 30_000 });
 });
 
+test('a loaded CSV opens on its own view, not the one in the URL', async ({ page }) => {
+  await page.goto('/#v=-230,-20,120,0.6,0.5,77');
+  await waitReady(page);
+  expect(await page.evaluate(() => window.__zspace.camera.dist)).toBe(77);
+  await page.setInputFiles('#csv', csvOf(20_000));
+  await page.waitForFunction(() => window.__zspace.stats().source?.startsWith('mock-'), undefined, { timeout: 60_000 });
+  expect(await page.evaluate(() => window.__zspace.camera.dist)).toBeGreaterThan(300);
+});
+
 test('bad files give a readable error', async ({ page }) => {
   await page.goto('/');
   await waitReady(page);

@@ -132,6 +132,10 @@ export function setupPanel(h: PanelHandlers): Panel {
       name.textContent = meta.source.mock ? '模擬カタログ' : meta.source.name;
       src.append(name, ` · ${formatCount(n)}銀河 · 奥行き ${depth} Mpc/h`);
 
+      $('creditMock').hidden = !meta.source.mock;
+      $('creditSdss').hidden = meta.source.mock === true || !/sdss/i.test(meta.source.name);
+      $('creditVast').hidden = !meta.layers.some((l) => l.params.method === 'vast-voidfinder');
+
       // Layers: names come from the metadata, so other structures need no UI changes.
       const box = $('layers');
       box.textContent = '';

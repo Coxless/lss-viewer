@@ -14,6 +14,7 @@ export async function gunzipIfNeeded(buffer: ArrayBuffer): Promise<ArrayBuffer> 
 export class HttpSource implements DataSource {
   private meta: Metadata | null = null;
   private wholePoints: ArrayBuffer | null = null;
+  private densityBytes: Promise<Uint8Array> | null = null;
 
   constructor(
     private readonly base: string,
@@ -74,10 +75,15 @@ export class HttpSource implements DataSource {
     return gunzipIfNeeded(await this.bytes(name));
   }
 
-  async density(): Promise<Uint8Array> {
+  /** Fetched once: every later threshold change reuses it. A failed fetch can be retried. */
+  density(): Promise<Uint8Array> {
     const info = this.meta?.density;
-    if (!info) throw new Error('このデータには密度格子がありません。');
-    return new Uint8Array(await this.file(info.file));
+    if (!info) return Promise.reject(new Error('このデータには密度格子がありません。'));
+    this.densityBytes ??= this.file(info.file).then((b) => new Uint8Array(b));
+    this.densityBytes.catch(() => {
+      this.densityBytes = null;
+    });
+    return this.densityBytes;
   }
 }
 

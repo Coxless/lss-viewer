@@ -41,6 +41,7 @@ test('layers: VAST list first, its surface on demand, and no Range support is su
   await expect(page.locator('#vCount')).toHaveText('6 個');
   await expect(page.locator('#vMethod')).toHaveText('検出方法：VAST VoidFinder');
   await expect(page.locator('#listName')).toHaveText('ボイド（VAST）');
+  expect(await page.locator('#creditVast').isHidden()).toBe(false);
 
   // Layer names come from the metadata.
   const rows = page.locator('#layers .layer');

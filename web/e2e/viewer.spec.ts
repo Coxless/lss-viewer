@@ -10,6 +10,7 @@ declare global {
         threshold: number; selected: number;
       };
       camera: { dist: number; flying: boolean; target: number[] };
+      bench: { frames: number; fps: number; fpsLow: number; avgPoints: number; transferredMB: number; budget: number } | null;
     };
   }
 }
@@ -93,6 +94,11 @@ test('density is not fetched until the threshold moves, then the surface and lis
   const after = await page.evaluate(() => window.__zspace.stats());
   expect(after.gpuBytes).not.toBe(before);
   expect(after.voids).toBeGreaterThan(0);
+
+  await page.locator('#thr').fill('-70');
+  await expect(page.locator('#thrTxt')).toHaveText('δ = −0.70');
+  await settled(page);
+  expect(requests.filter((u) => u.includes('density')).length).toBe(1);
   expect(errors).toEqual([]);
 });
 
@@ -241,6 +247,27 @@ test('fixed view, mesh only, matches its reference image', async ({ page }) => {
   await settled(page);
   await page.addStyleTag({ content: '.hud,.sheet,.hint,.scale,#labels{display:none!important}' });
   await expect(page.locator('#sky')).toHaveScreenshot('shell.png', { maxDiffPixelRatio: 0.02, threshold: 0.2 });
+});
+
+test('?bench=1 plays the camera path and reports the numbers (section 11)', async ({ page }) => {
+  await page.goto('/?bench=1&seconds=3&budget=150000');
+  await page.waitForFunction(() => window.__zspace?.bench !== null, undefined, { timeout: 60_000 });
+  const b = await page.evaluate(() => window.__zspace.bench!);
+  console.log(`bench (software rendering): ${JSON.stringify(b)}`);
+  expect(b.frames).toBeGreaterThan(0);
+  expect(b.avgPoints).toBeGreaterThan(0);
+  expect(b.budget).toBe(150_000);
+  expect(b.transferredMB).toBeGreaterThan(0);
+  await expect(page.locator('#benchOut')).toContainText('"fps"');
+});
+
+test('credits match the data', async ({ page }) => {
+  await page.goto('/');
+  await settled(page);
+  await expect(page.locator('#creditMock')).toBeAttached();
+  expect(await page.locator('#creditMock').isHidden()).toBe(false);
+  expect(await page.locator('#creditSdss').isHidden()).toBe(true);
+  expect(await page.locator('#creditVast').isHidden()).toBe(true);
 });
 
 test.describe('phone layout', () => {

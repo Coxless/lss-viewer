@@ -1,2 +1,26 @@
-rustup target add wasm32-unknown-unknown
-cargo install --locked --root "$HOME/.local" wasm-pack
+# Downloads can stall with no timeout of their own, so each step gets a limit and retries.
+retry() {
+  for _ in 1 2 3 4 5; do
+    timeout 600 "$@" && return 0
+    sleep 5
+  done
+  return 1
+}
+export CARGO_HTTP_MULTIPLEXING=false
+
+rustup target list --installed | grep -q wasm32-unknown-unknown \
+  || retry rustup target add wasm32-unknown-unknown
+
+command -v wasm-pack >/dev/null \
+  || retry cargo install --locked --root "$HOME/.local" wasm-pack
+
+# wasm-pack would otherwise download this from GitHub with no timeout. The version must
+# match Cargo.lock.
+BINDGEN=$(grep -A1 'name = "wasm-bindgen"' /project/Cargo.lock | sed -n 's/version = "\(.*\)"/\1/p')
+wasm-bindgen --version 2>/dev/null | grep -q "$BINDGEN" \
+  || retry cargo install --locked --root "$HOME/.local" wasm-bindgen-cli --version "$BINDGEN"
+
+# Browser for the end-to-end tests, with the system libraries it needs.
+cd /project/web
+retry npm ci
+retry npx playwright install --with-deps chromium

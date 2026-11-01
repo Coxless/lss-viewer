@@ -4,4 +4,19 @@ sdks:
   - name: rust
   - name: node
     channel: "24"
+    slots:
+      vite-dev:
+        interface: tunnel
+        endpoint: localhost:5173
+      vite-preview:
+        interface: tunnel
+        endpoint: localhost:4173
   - name: project-wasm-tools
+  - name: system
+    plugs:
+      vite-dev:
+        interface: tunnel
+        endpoint: localhost:15173
+      vite-preview:
+        interface: tunnel
+        endpoint: localhost:14173

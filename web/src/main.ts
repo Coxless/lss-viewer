@@ -71,6 +71,8 @@ function markDirty() {
 }
 
 // ---------------- worker ----------------
+let remeshTimer = 0;
+let hashPending = true;
 const worker = new Worker(new URL('./data/worker.ts', import.meta.url), { type: 'module' });
 
 function send(m: ToWorker) {
@@ -106,6 +108,8 @@ worker.onmessage = (ev: MessageEvent<ToMain>) => {
       markDirty();
       break;
     case 'remeshed': {
+      // Answers to earlier slider positions can still be on their way.
+      if (m.threshold !== state.threshold) break;
       state.remeshPending = false;
       panel.setThresholdStatus(m.truncated ? '三角形の上限で打ち切りました' : '');
       const simple = state.meta?.layers.find((l) => l.kind === 'list' && l.params.method === 'simple');
@@ -153,6 +157,9 @@ function beginDataset() {
   state.transferred = 0;
   state.firstDraw = null;
   state.slab = null;
+  state.remeshPending = false;
+  clearTimeout(remeshTimer);
+  panel.setThresholdStatus('');
   panel.resetSlab();
   panel.showError(null);
   return state.gen;
@@ -208,7 +215,9 @@ function onOpened(meta: Metadata, hierarchy: ArrayBuffer) {
   state.listId = list?.id ?? null;
   if (list) send({ type: 'layerList', gen: state.gen, layerId: list.id, file: list.file });
 
-  const shared = decodeHash(location.hash);
+  // A view in the URL belongs to the dataset the page opened with, not to one loaded later.
+  const shared = hashPending ? decodeHash(location.hash) : null;
+  hashPending = false;
   if (shared) camera.set(shared);
   else goHome(false);
 
@@ -282,7 +291,6 @@ function showVeil(on: boolean, text?: string) {
   v.style.pointerEvents = on ? 'auto' : 'none';
 }
 
-let remeshTimer = 0;
 const panel: Panel = setupPanel({
   isPhone,
   onMode: (m) => {
