@@ -29,3 +29,23 @@
 **決定：** Rust で再実装し、プロトタイプの Wasm 出力と統計で比較する（`fixtures/tools/compare-mock.mjs`）。
 
 **理由：** プロトタイプの C ソースは現存しない。バイト一致は求めず、観測範囲、種別の比率、δ の分布、メッシュの規模を合わせる。
+
+## 2026-11-01：公開前の確認（調査結果。法的助言ではない）
+
+**SDSS データ：** 再配布の障害は見つからなかった。SDSS の [Image Use Policy](https://www.sdss.org/collaboration/image-use-policy/) に「All SDSS data released in our public data releases are considered in the public domain.」とある。ただし画像利用のページの記述で、DR18 のページには利用条件の記載がない。
+
+- ビューアは `sdss.org` へのリンク付きでクレジットを表示している。画像の Web 利用について SDSS がお願いしているリンクと同じ形で、データについての要件ではない
+- SDSS が定めた謝辞は論文向けで、Web ツール向けの定めは見つからなかった
+- 明確なライセンス文書が必要なら、SDSS に問い合わせる
+
+**VAST カタログ：** CC-BY-4.0。クレジットは表示済み。
+
+**「zspace」の名前：** 公開前に判断が必要。リスクは低くない。
+
+- zSpace, Inc. は Nasdaq 上場の現存企業で、教育向け AR/VR 製品を販売している
+- [Justia の記録](https://trademark.justia.com/owners/zspace-inc-2595031)では ZSPACE（serial 77382592）を所有し、対象は 2D・3D の投影画像のためのソフトウェアとハードウェア。zspace（3D 表示ソフトウェア、教育的な用途）と分野が近い
+- 登録の現状と日本での出願は未確認。USPTO と J-PlatPat での確認、または専門家への相談が必要
+
+**推奨：** 名前を変えるなら公開前が最も安い。名前が出る場所は少ない（画面の見出し、README、クレート名、CLI 名）。
+
+**リポジトリのライセンス：** 未決定。
