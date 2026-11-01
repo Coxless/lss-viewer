@@ -50,3 +50,12 @@ http://localhost:14173/?bench=1&budget=1000000       PC（目標 60 fps）
 ## コマンド
 
 `zspace-cli help` を参照してください。`mock`、`tile`、`build`、`import-vast` があります。
+
+## ライセンス
+
+コードは [MIT](LICENSE) です。データは別の条件に従います。
+
+- SDSS：公開リリースのデータ（[Sloan Digital Sky Survey](https://www.sdss.org/)）
+- ボイドカタログ：VAST（Douglass, Veyrat, BenZvi）、[Zenodo](https://doi.org/10.5281/zenodo.11043278)、CC BY 4.0
+
+「zSpace」は zSpace, Inc. の製品名で、このプロジェクトとは関係ありません。名前は赤方偏移空間（redshift space）に由来します。
