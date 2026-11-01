@@ -101,7 +101,7 @@ M0 → M1 → M2 → M3 ─┬→ M4 ─┬→ M6
 - [x] 開発環境：Ubuntu Workshop の `dev`（定義は `.workshop/`）。Rust 1.99.1、`wasm32-unknown-unknown`、wasm-pack 0.15.1、binaryen（wasm-opt 120）、Node 24.22.2。ホストには Rust も Node も入れず、`workshop exec dev -- <コマンド>` または `workshop shell` で使う。Vite のポート転送と Playwright のブラウザは未設定で、必要になる M1・M2 で追加する
 - [x] リポジトリを整える。コミットがまだ1つもなく、ブランチは `master`。`main` に揃えて concept とプロトタイプを最初のコミットにする
 - [x] Cargo ワークスペースと Vite の雛形、`.gitignore`（データセットと SDSS の生データは入れない）
-- [x] GitHub Actions：`cargo test`、`clippy`、wasm ビルド、web ビルド（リモートがないので未実行）
+- [x] GitHub Actions：`cargo test`、`clippy`、wasm ビルド、web ビルド
 - [x] **Wasm の検証**：`fast-surface-nets` と `cdshealpix` が `wasm32-unknown-unknown` でビルドできること、および `.wasm` のサイズを確認する。ここで駄目なら自前実装に切り替える
 - [x] **Firefly の評価（半日で打ち切り）**。結果を `docs/decisions.md` に残す。判断基準は、ボイド輪郭の重ね表示・スライス・飛び込み・U5 を、自前実装より少ない変更で載せられるか、およびスマホ性能と初回転送量の目標を満たせるか
 - [x] `docs/format.md`（concept 6章＋本計画の変更）
@@ -119,7 +119,7 @@ M0 → M1 → M2 → M3 ─┬→ M4 ─┬→ M6
 - [x] `zspace-cli tile`（`--input --out --seed --k --max-depth --split-files --attr-map --timings`）
 - [x] rayon による並列化。段階ごとの処理時間を `--timings` で出す
 - [x] 単体テスト：全点がちょうど1回含まれる、各ノードが K 以下、量子化誤差が半辺長/32767 以下
-- [x] **実ホストでの Range 確認**：GitHub Pages 上の既存の `.bin`（threejs.org）で、ブラウザの `fetch` が 206 かつ正しいバイト列で返ることを確認した（R1）。自分のデータセットでの確認は公開時に行う
+- [x] **実ホストでの Range 確認**：GitHub Pages 上の既存の `.bin`（threejs.org）で、ブラウザの `fetch` が 206 かつ正しいバイト列で返ることを確認した（R1）。自分のデータセットでも公開先で確認した
 - [x] 最小ビューア（`web/` の最初の版。使い捨てにせず M2 の出発点にする）
 
 **完了条件**：出力したデータをブラウザで表示できる。Range の確認が済んでいる。100万銀河の処理が8コアで1秒以内（CSV 読み取りから全ファイル出力まで）。
@@ -180,9 +180,9 @@ M0 → M1 → M2 → M3 ─┬→ M4 ─┬→ M6
 - [x] `zspace-cli import-vast`：v1.3.1 の Planck2018 版を使う。`holes` の第5列（`flag`）がボイド ID で、ボイドごとに球の和集合の距離場から Surface Nets でメッシュを作る
 - [x] ボイド一覧：`maximal` の `R_eff` を半径に使い、中心は holes の体積重心とする（`maximal` の座標は最大球の中心で、ボイドの中心ではないため）
 - [x] 一覧に「VAST」「簡易検出」の区別を表示（5.7）
-- [ ] GitHub Actions で Pages へデプロイ（ワークフローのみ作成、未実行。U8 と同じ指標をデプロイ先でも確認する）
+- [x] GitHub Actions で Pages へデプロイ、公開先で確認
 - [x] クレジット表示：VAST（CC-BY-4.0 で必須）、SDSS の謝辞
-- [ ] 公開前の確認：SDSS の再配布条件、商標、リポジトリのライセンス
+- [x] 公開前の確認：SDSS の再配布条件、商標、リポジトリのライセンス（`docs/decisions.md`）
 
 **完了条件**：公開 URL で SDSS のデモが動き、8章の目標を公開先で満たす。
 
@@ -237,8 +237,18 @@ FITS 読み込み、高密度レイヤーと銀河団カタログ、任意マー
 | Wasm と CLI の出力 | バイト一致（40,000 件で確認） | 同一 |
 | GitHub Pages の Range | 他サイトの `.bin` で 206 と正しいバイト列を確認 | 動作 |
 
+公開先（https://coxless.github.io/zscope/ 、SDSS DR18 + VAST）での確認：
+
+| 項目 | 実測 | 目標 |
+|---|---|---|
+| 4G 相当の初回表示 | 1.66〜1.76 秒（3 回）。公開直後の 1 回目は 2.58 秒 | 2 秒以内 |
+| 同、Web フォントなし | 約 0.85 秒 | 参考 |
+| 初回のデータ転送量 | 559〜591 KB | 1 MB 以下 |
+| タイルの Range 取得 | 37 件すべて 206 | 動作 |
+| しきい値の変更、ボイドへの飛行 | 動作、エラーなし | 動作 |
+
+M6 の完了条件は満たした。CI（rust、web）も GitHub 上で成功。Web フォントが初回表示の時間の約半分を占めるので、余裕が要るときはフォントの読み込みを遅らせる。
+
 未完了：
 
-- 中位スマホでの fps 計測（25万点、目標 30 fps）。`?bench=1&budget=250000` で計測する
-- スマホ実機での操作確認
-- GitHub リポジトリの作成、`Deploy demo` の実行と公開先での確認（ワークフローは未実行）
+- 中位スマホでの fps 計測（25万点、目標 30 fps）と操作確認。デモの URL に `?bench=1&budget=250000` を付けて開く

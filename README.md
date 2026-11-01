@@ -1,6 +1,6 @@
 # zspace
 
-宇宙の大規模構造（銀河団・フィラメント・壁・ボイド）を、実際の観測データからブラウザで3D表示するツールです。設計は [concept.md](concept.md)、データ形式は [docs/format.md](docs/format.md)、計画と進み具合は [docs/implementation-plan.md](docs/implementation-plan.md) にあります。
+宇宙の大規模構造（銀河団・フィラメント・壁・ボイド）を、実際の観測データからブラウザで3D表示するツールです。デモは https://coxless.github.io/zscope/ で見られます。設計は [concept.md](concept.md)、データ形式は [docs/format.md](docs/format.md)、計画と進み具合は [docs/implementation-plan.md](docs/implementation-plan.md) にあります。
 
 ## 開発環境
 
