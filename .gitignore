@@ -1,0 +1,13 @@
+/target/
+node_modules/
+/web/dist/
+/web/test-results/
+/web/playwright-report/
+# generated datasets and raw survey downloads stay out of git
+/dataset/
+/data/
+/web/public/dataset/
+*.wasm.map
+/.workshop.lock
+/web/src/wasm/
+/web/test/fixtures/

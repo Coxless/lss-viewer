@@ -77,9 +77,9 @@ zspace/
 | データ | 用途 | 取得方法 | 備考 |
 |---|---|---|---|
 | SDSS DR18 SpecObj | 銀河の位置（ra, dec, z） | SkyServer SQL（下記）、大量ならCasJobs | 公開データ |
-| VAST SDSS DR7 ボイドカタログ | ボイドの位置・形（VoidFinder の球の集まり、V2 の領域） | Zenodo（record 5834787 とその新版） | ASCII。**ライセンス表記を要確認** |
+| VAST SDSS DR7 ボイドカタログ | ボイドの位置・形（VoidFinder の球の集まり、V2 の領域） | Zenodo（v1.3.1、record 11043278。Planck2018版を使う） | ASCII。CC-BY-4.0（クレジット表記が必須） |
 | DESI DR1 | 将来の拡張（数千万天体） | DESI公式の公開データ | v2以降 |
-| 模擬カタログ | テスト・デモ・オフライン開発 | zspace-core 内の生成器 | プロトタイプのボロノイ型モデルを移植 |
+| 模擬カタログ | テスト・デモ・オフライン開発 | zspace-core 内の生成器 | プロトタイプのボロノイ型モデルを再実装（Cソースは現存しない） |
 
 SkyServer用SQL（v1の標準入力）：
 
@@ -122,13 +122,14 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 2. CIC（cloud-in-cell）で銀河を数えて ρ とする。
 3. **動径選択関数 n(r)**：マスク内のセルを r で128区間に分けて平均密度を求め、前後3区間で平滑化する。等級制限のあるサーベイは遠いほど銀河が減るので、これで補正する。
 4. 正規化畳み込み：`δ = G*(ρ·M) / G*(M·n(r)) − 1`。G はガウス核（σ=1.4セル）、M はマスク。
-5. マスクの平滑値が0.6未満のセルは「範囲外」とし、δ=+3 を入れる（ボイド扱いしない）。
+5. マスクの平滑値が0.6未満のセルは「範囲外」とする。埋め値は使わず、格納時は番兵値 255 で表す（ボイドにも高密度領域にもならない）。
 
 ### 5.6 ボイド輪郭メッシュ
 - δ = しきい値（既定 −0.6）の等値面を **Naive Surface Nets** で作る（`fast-surface-nets` クレートが候補）。
 - **範囲外セルに接するセルからは面を作らない。** 観測範囲の端でボイドを閉じる偽の壁を描かないため（プロトタイプで問題を確認済み）。
 - 頂点ごとに法線（δ の勾配）を持つ。ビューアは法線と視線の角度で輪郭線だけを光らせる。
-- 出力：頂点 float32×6（位置・法線）、インデックス uint32。三角形の上限は70万。
+- 出力：頂点 8 バイト（位置 int16×3、法線 oct 符号化 int8×2）、インデックスは差分符号化して gzip。三角形の上限は70万。
+- `density.bin` と同じ量子化済み δ から作る。ブラウザでの再生成（U5）と結果が一致するようにするため。
 
 ### 5.7 ボイドの一覧
 - **v1：VAST カタログを優先して取り込む。** 球の集まり（VoidFinder の holes）からボイドごとに中心・有効半径を計算する。
@@ -165,12 +166,10 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
   "bbox": [xmin, ymin, zmin, xmax, ymax, zmax],
   "rRange": [30.0, 450.0],
   "octree": { "root": [cx, cy, cz, half], "leafK": 4096, "nodes": 712, "pointBytes": 8 },
-  "density": { "dims": [76, 125, 68], "origin": [x, y, z], "cell": 6.09, "sigmaCells": 1.4, "encoding": "uint8-log" },
-  "shells": { "threshold": -0.6, "vertices": 18402, "indices": 97638 },
-  "voids": { "file": "voids.json", "method": "vast-voidfinder" },
+  "density": { "dims": [76, 125, 68], "origin": [x, y, z], "cell": 6.09, "sigmaCells": 1.4, "encoding": "uint8-log", "file": "density.bin.gz" },
   "layers": [
-    { "id": "voids", "kind": "isosurface", "file": "shells.bin", "params": { "threshold": -0.6 } },
-    { "id": "void-list", "kind": "list", "file": "voids.json" }
+    { "id": "voids", "kind": "isosurface", "name": "ボイド", "file": "shells.bin.gz", "params": { "threshold": -0.6, "polarity": "low", "vertices": 18402, "indices": 97638 } },
+    { "id": "void-list", "kind": "list", "name": "見つかったボイド", "file": "voids.json", "params": { "method": "simple" } }
   ],
   "footprint": { "healpixNside": 128, "file": "footprint.bin" }
 }
@@ -184,10 +183,10 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 全ノードの量子化点を連結したもの。`byteOffset` と `count×8` で Range 取得します。静的ホストが Range に対応しない場合に備え、CLI に `--split-files`（`tiles/<id>.bin`）を用意します。
 
 ### density.bin
-δ を uint8 で格納：`q = clamp(round((log1p(δ+1) ... )))`。具体的な写像は実装時に決め、`format.md` に書く。目標は200〜700KB。ブラウザ側でしきい値を変えて輪郭を作り直すために使う（U5）。
+実際のファイルは `density.bin.gz`。δ を uint8 で格納：`q = round((ln(1+δ) − ln 0.05) / (ln 10 − ln 0.05) × 254)`、1+δ は [0.05, 10] に丸める。255 = 範囲外。目標は200〜700KB。ブラウザ側でしきい値を変えて輪郭を作り直すために使う（U5）。初回には読まず、しきい値を最初に動かしたときに取得する。
 
-### shells.bin / voids.json / footprint.bin
-- shells.bin：既定しきい値の輪郭メッシュ。最初の表示を速くするため、事前に作っておく。
+### shells.bin.gz / voids.json / footprint.bin
+- shells.bin.gz：既定しきい値の輪郭メッシュ。最初の表示を速くするため、事前に作っておく。部分取得せず丸ごと取得し、Worker で展開する。
 - voids.json：`[{ "id", "center": [x,y,z], "radius", "deltaMin", "method" }]`
 - footprint.bin：HEALPix の観測済みピクセル（ビットマップ）。
 
@@ -225,8 +224,8 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 
 | 項目 | 目標 |
 |---|---|
-| 最初の表示までの転送量 | 1 MB 以下（metadata＋根付近のタイル＋shells＋density） |
-| 最初の表示までの時間 | 4G回線で2秒以内 |
+| 最初の表示までの転送量 | 1 MB 以下（metadata＋hierarchy＋深さ1までのタイル＋shells。density は含めない） |
+| 最初の表示までの時間 | 4G回線で2秒以内（上記の描画完了まで。残りのタイルはその後に順次読み込む） |
 | fps | PC 60fps（100万点表示時）、中位スマホ 30fps 以上（25万点表示時） |
 | GPUメモリ | 標準設定で 30 MB 以下 |
 | 前処理（CLI） | 100万銀河で 1秒以内（8コア） |
@@ -237,10 +236,10 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 ### 使うもの
 | OSS | 使い方 | ライセンス |
 |---|---|---|
-| `fast-surface-nets`（Rust） | 輪郭メッシュの生成 | MIT / Apache-2.0（クレート同梱のファイルで要確認） |
-| `cdshealpix`（Rust） | 観測範囲マスク | 要確認 |
+| `fast-surface-nets`（Rust） | 輪郭メッシュの生成 | MIT / Apache-2.0 |
+| `cdshealpix`（Rust） | 観測範囲マスク | MIT / Apache-2.0 |
 | `wasm-bindgen`、`rayon`、`csv`、`serde` | 定番の基盤 | MIT / Apache-2.0 |
-| VAST（Python） | SDSS DR7 のボイドカタログ（データとして利用） | リポジトリのLICENSEで要確認 |
+| VAST（Python） | SDSS DR7 のボイドカタログ（データとして利用） | コードは BSD-3-Clause、カタログは CC-BY-4.0 |
 | PotreeConverter / Potree | **依存はしない。** LOD八分木とRange取得の設計の参考にする | BSD-2-Clause |
 
 ### 足りないもの（別で作る）
@@ -261,7 +260,7 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 4. **ボイド観察に特化したWebビューア**
    近いものは Firefly（ブラウザで動く天文用の点群表示、独自の八分木、数十億粒子規模）です。ただし、ボイド輪郭の重ね表示、スライス、ボイドへの飛び込み、しきい値の即時変更はありません。Potree ビューアは点群の汎用表示で、天文用の機能がありません。
    → `web/`
-   **最初に半日ほど Firefly を評価し、拡張する方が早いかを判断する。** 判断結果は `docs/decisions.md` に残す。
+   Firefly は評価のうえ採用しなかった。判断の記録は `docs/decisions.md` を参照。
 
 ## 10. マイルストーン
 
@@ -269,9 +268,9 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 |---|---|---|
 | M0 | Fireflyの評価、ワークスペースの雛形、模擬カタログ生成器の移植 | `cargo test` が通り、模擬カタログ60万件を出力できる |
 | M1 | 前処理CLI：CSV読み込み → 八分木 → points/hierarchy/metadata | 出力をプロトタイプ相当の簡易ビューアで表示できる |
-| M2 | ビューア：LOD選択、Range取得、LRU、orbit操作、性能表示 | 8章の fps と転送量の目標を模擬データで満たす |
-| M3 | 密度格子、マスク、選択関数、輪郭メッシュ、簡易ボイド検出 | 端に偽の壁が出ない。SDSS実データで泡構造が見える |
-| M4 | UI一式（U2〜U8, U10）、スマホ対応、視点のURL共有 | プロトタイプの全操作が再現できる |
+| M2 | ビューア：LOD選択、Range取得、LRU、orbit操作、性能表示 | 8章の fps と点群分の転送量の目標を模擬データで満たす |
+| M3 | 密度格子、マスク、選択関数、輪郭メッシュ、簡易ボイド検出 | 端に偽の壁が出ない。全体の転送量が目標内。SDSS実データで泡構造が見える |
+| M4 | UI一式（U2〜U4, U6〜U8, U10）、スマホ対応、視点のURL共有 | U1〜U4, U6〜U8, U10 がプロトタイプと同様に動く |
 | M5 | Wasm版コアでのCSV読み込み（U9）、しきい値の即時変更（U5） | 30万件のCSVを3秒以内に表示できる |
 | M6 | VASTカタログの取り込み、GitHub Pagesへのデモ配置 | 公開URLでSDSSデータのデモが動く |
 
@@ -288,9 +287,8 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 
 ## 12. 未決事項
 
-- `density.bin` の量子化方式（uint8の対数か、float16か）。
 - 赤方偏移空間の歪み（銀河団が視線方向に伸びる「神の指」）を補正するか。v1は補正せず、説明文で触れるだけにする予定。補正するならグループ検出が必要。
-- VAST カタログと SDSS 本体データの再配布条件（両方のライセンス確認）。
+- SDSS 本体データの再配布条件と必要な謝辞の確認（VAST カタログは CC-BY-4.0 で確認済み）。
 - 「zspace」は3D表示装置を作る同名の会社（zSpace社）と重なる。公開前に商標の扱いを確認する。
 
 ## 13. 参考
@@ -298,5 +296,5 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 - プロトタイプ：`prototype/zspace-prototype.html`（WasmコアはC。本実装でRustに置き換える）
 - PotreeConverter：https://github.com/potree/PotreeConverter
 - Firefly：https://arxiv.org/abs/2207.13706 、https://firefly.rcs.northwestern.edu
-- VAST：https://github.com/desi-ur/vast 、カタログ https://zenodo.org/record/5834787
+- VAST：https://github.com/desi-ur/vast 、カタログ https://zenodo.org/records/11043278
 - fast-surface-nets：https://docs.rs/fast-surface-nets

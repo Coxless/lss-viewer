@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>zspace</title>
+<meta name="description" content="宇宙の大規模構造を、実際の観測データからブラウザで3D表示します。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Old+Mincho:wght@600&display=swap">
+</head>
+<body>
+<canvas id="sky" aria-label="銀河分布の3D表示"></canvas>
+
+<div class="hud">
+  <div class="brand">
+    <h1>zspace</h1>
+    <div class="src" id="srcline">準備中</div>
+  </div>
+  <div class="readout" id="readout" aria-live="off">
+    表示 <span id="rPts">0</span> 点<span class="lod"><i id="rBar"></i></span><br>
+    <span class="opt">タイル <span id="rNodes">0</span> · GPU <span id="rGpu">0</span> MB<br></span>
+    <span class="opt">転送 <span id="rXfer">0</span> MB · </span><span id="rFps">–</span> fps
+  </div>
+</div>
+
+<div class="scale" id="scale"><div class="bar" id="scaleBar" style="width:80px"></div><span id="scaleTxt"></span></div>
+<div id="labels"></div>
+<div class="hint" id="hint">ドラッグで回転 · ピンチ/ホイールで拡大 · 2本指/右ドラッグで移動</div>
+
+<aside class="sheet collapsed" id="sheet" aria-label="表示の操作">
+  <button class="grip" id="grip" aria-label="操作パネルを開閉"><i></i></button>
+  <div class="scroll">
+    <section class="sec">
+      <h2>表示モード <em id="zoomState">全体</em></h2>
+      <div class="seg" role="group" aria-label="表示モード">
+        <button id="mAuto" aria-pressed="true">自動</button>
+        <button id="mShell" aria-pressed="false">輪郭のみ</button>
+        <button id="mGal" aria-pressed="false">銀河のみ</button>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="nextVoid">次のボイドへ入る</button>
+        <button class="btn" id="home">全体を見る</button>
+      </div>
+    </section>
+
+    <div class="more">
+    <section class="sec">
+      <h2>スライス <em id="slabTxt">オフ</em></h2>
+      <input type="range" id="slab" min="0" max="100" value="0" aria-label="スライスの厚さ">
+      <div class="row"><button class="btn" id="slabAlign">今の視線に合わせる</button></div>
+      <p>厚さを薄くすると、論文でよく見る2Dの扇形図と同じ見え方になります。少しずつ厚くすると、穴が泡の形をしていることがわかります。</p>
+    </section>
+
+    <section class="sec">
+      <h2>構造レイヤー</h2>
+      <div class="layers" id="layers"></div>
+      <label class="check"><input type="checkbox" id="showFrame" checked> 観測範囲の枠と距離目盛り</label>
+    </section>
+
+    <section class="sec" id="thrSection">
+      <h2>ボイドの境界 <em id="thrTxt">δ = −0.60</em></h2>
+      <input type="range" id="thr" min="-85" max="-30" step="5" value="-60" aria-label="ボイド境界の密度しきい値">
+      <div class="status" id="thrStatus"></div>
+      <p>平均密度より何割少ない所を「空洞の壁」とみなすか。−0.60は平均の4割以下の領域です。</p>
+    </section>
+
+    <section class="sec">
+      <h2><span id="listName">ボイド</span> <em id="vCount">0</em></h2>
+      <div class="seg" id="listChoice" role="group" aria-label="一覧の検出方法" hidden></div>
+      <ul class="voids" id="voidList"></ul>
+      <div class="method" id="vMethod"></div>
+    </section>
+
+    <section class="sec">
+      <h2>描画の上限</h2>
+      <div class="seg" role="group" aria-label="描画する点の上限">
+        <button id="q1" aria-pressed="false">軽量 15万</button>
+        <button id="q2" aria-pressed="true">標準 40万</button>
+        <button id="q3" aria-pressed="false">高精細 100万</button>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h2>データ</h2>
+      <div class="seg" role="group" aria-label="模擬カタログの銀河数を選んでブラウザ内で生成">
+        <button id="n1" aria-pressed="false">30万</button>
+        <button id="n2" aria-pressed="false">60万</button>
+        <button id="n3" aria-pressed="false">120万</button>
+      </div>
+      <label class="btn file" id="csvLabel">SDSSのCSVを読み込む<input type="file" id="csv" accept=".csv,.txt,text/csv"></label>
+      <p id="dataNote"></p>
+      <div class="err" id="err" hidden></div>
+    </section>
+
+    <section class="sec">
+      <h2>軽さのしくみ</h2>
+      <ul class="how">
+        <li><span class="tag">前処理</span><b>八分木タイル</b>：銀河をランダムに並べ替えてから空間を8分割。上の階層ほど全体の間引き版になります。</li>
+        <li><span class="tag">前処理</span><b>16bit量子化</b>：各タイル内の相対座標を整数にして、1銀河8バイトに圧縮。</li>
+        <li><span class="tag">前処理</span><b>密度格子と輪郭</b>：銀河を格子に数え、観測範囲と距離による減少を補正して平滑化。低密度の境界面だけを三角形メッシュにします。</li>
+        <li><span class="tag">実行時</span><b>画面上の大きさで選択</b>：近くて大きく見えるタイルから順に、点の上限まで読み込みます。縮小時は輪郭と間引き版だけ。</li>
+        <li><span class="tag">実行時</span><b>LRUキャッシュ</b>：しばらく使わないタイルはGPUから捨てます。カメラが止まると描画も止まります。</li>
+      </ul>
+      <p>重い計算はすべてWebAssembly（Rust）でWeb Worker上に置き、画面の操作を止めません。</p>
+    </section>
+
+    <section class="sec">
+      <h2>データの出典</h2>
+      <p class="credit">赤方偏移空間の歪み（銀河団が視線方向に伸びて見える「神の指」）は補正していません。</p>
+      <p class="credit" id="credit">銀河：Sloan Digital Sky Survey（<a href="https://www.sdss.org/" rel="noopener">sdss.org</a>）。ボイド：VAST（Douglass et al.）、<a href="https://zenodo.org/records/11043278" rel="noopener">Zenodo</a>、CC BY 4.0。</p>
+    </section>
+    </div>
+  </div>
+</aside>
+
+<div class="veil" id="veil"><div class="box"><h1>zspace</h1><div class="meter"><i></i></div><div class="stage" id="stage">起動中</div></div></div>
+<pre id="benchOut" hidden></pre>
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

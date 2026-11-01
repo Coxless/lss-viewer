@@ -1,0 +1,7 @@
+name: dev
+base: ubuntu@26.04
+sdks:
+  - name: rust
+  - name: node
+    channel: "24"
+  - name: project-wasm-tools

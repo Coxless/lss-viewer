@@ -1,0 +1,20 @@
+[package]
+name = "zspace-core"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+parallel = ["dep:rayon"]
+
+[dependencies]
+cdshealpix = "=0.10.1"
+csv = "1"
+fast-surface-nets = "0.2"
+flate2 = "1"
+libm = "0.2"
+rand_chacha = "0.9"
+rand_core = "0.9"
+rayon = { version = "1", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }

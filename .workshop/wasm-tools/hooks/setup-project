@@ -1,0 +1,2 @@
+rustup target add wasm32-unknown-unknown
+cargo install --locked --root "$HOME/.local" wasm-pack
