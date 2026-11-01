@@ -13,7 +13,7 @@ export interface Metadata {
 
 export interface Layer {
   id: string;
-  kind: 'isosurface' | 'list' | 'polyline' | 'markers';
+  kind: 'isosurface' | 'list' | 'polyline' | 'markers' | 'regions';
   name: string;
   file: string;
   params: { threshold?: number; polarity?: 'low' | 'high'; color?: string; vertices?: number; indices?: number; method?: string; surface?: string };

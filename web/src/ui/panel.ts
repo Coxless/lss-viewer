@@ -1,3 +1,4 @@
+import { MAX_HIGHLIGHTS, okuLightYears, type Structure } from '../data/structures';
 import type { Metadata, VoidEntry } from '../data/types';
 
 type Mode = 'auto' | 'shell' | 'gal';
@@ -17,6 +18,9 @@ export interface PanelHandlers {
   onLayerOn(id: string, on: boolean): void;
   onLayerOpacity(id: string, opacity: number): void;
   onShowFrame(on: boolean): void;
+  onStructure(id: string, on: boolean): void;
+  onFlyToStructure(id: string): void;
+  onDim(brightness: number): void;
   onCsv(file: File): void;
   onMock(n: number): void;
 }
@@ -41,6 +45,10 @@ export interface Panel {
   setLayerStatus(id: string, text: string): void;
   markSelected(i: number): void;
   resetSlab(): void;
+  setSlabThickness(thickness: number): void;
+  setStructures(list: Structure[]): void;
+  markStructures(checked: Set<string>, dimming: boolean): void;
+  setStructureNote(text: string): void;
   showError(text: string | null): void;
   setThresholdStatus(text: string): void;
   openSheet(open: boolean): void;
@@ -56,7 +64,55 @@ const METHOD_LABEL: Record<string, string> = {
   'vast-voidfinder': 'VAST VoidFinder',
 };
 
+const TYPE_LABEL: Record<Structure['type'], string> = { cluster: '銀河団', supercluster: '超銀河団', wall: '壁', void: 'ボイド' };
+const REASON_LABEL: Record<NonNullable<Structure['reason']>, string> = {
+  'too-near': '近すぎます',
+  'too-far': '遠すぎます',
+  'out-of-survey': '観測範囲の外です',
+};
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+
+function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
+  const e = document.createElement(tag);
+  e.className = className;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+/** A structure's explanation. Text only; the catalog is data, not markup. */
+function structureDetail(s: Structure): HTMLElement {
+  const d = element('div', 'st-detail');
+  d.hidden = true;
+  d.append(element('p', '', s.summary), element('p', '', `大きさ：${s.size}`), element('p', '', `発見：${s.discovery}`));
+  if (s.status === 'visible') {
+    const ratio = s.ratio === undefined ? '' : `、平均密度の ${s.ratio.toFixed(2)} 倍`;
+    d.append(element('p', '', `このデータでは：銀河 ${s.galaxies.toLocaleString('ja-JP')} 個${ratio}。領域の ${Math.round(s.coverage * 100)}% が観測範囲に入っています。`));
+  }
+  d.append(element('p', '', `領域の根拠：${s.basis}`));
+  const refs = element('p', '', '出典：');
+  s.refs.forEach((r, i) => {
+    if (i) refs.append('、');
+    const a = element('a', '', r.label);
+    a.href = r.url;
+    a.rel = 'noopener';
+    a.target = '_blank';
+    refs.append(a);
+  });
+  d.append(refs);
+  return d;
+}
+
+function detailButton(name: string, detail: HTMLElement): HTMLButtonElement {
+  const b = element('button', 'st-btn st-more', '▾');
+  b.setAttribute('aria-label', `${name}の説明`);
+  b.setAttribute('aria-expanded', 'false');
+  b.onclick = () => {
+    detail.hidden = !detail.hidden;
+    b.setAttribute('aria-expanded', String(!detail.hidden));
+  };
+  return b;
+}
 
 function segmented(ids: string[], onPick: (id: string) => void) {
   for (const id of ids) {
@@ -174,6 +230,28 @@ export function setupPanel(h: PanelHandlers): Panel {
     h.onCsv(f);
     csv.value = '';
   };
+
+  for (const heading of document.querySelectorAll<HTMLElement>('.more .sec > h2')) {
+    const sec = heading.parentElement!;
+    const toggle = () => {
+      sec.classList.toggle('closed');
+      heading.setAttribute('aria-expanded', String(!sec.classList.contains('closed')));
+    };
+    heading.tabIndex = 0;
+    heading.setAttribute('role', 'button');
+    heading.setAttribute('aria-expanded', String(!sec.classList.contains('closed')));
+    heading.onclick = toggle;
+    heading.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle();
+      }
+    };
+  }
+
+  const dim = $<HTMLInputElement>('dim');
+  dim.oninput = () => h.onDim(+dim.value / 100);
+  const structureChecks = new Map<string, HTMLInputElement>();
 
   let lastList: HTMLButtonElement[] = [];
   const err = $('err');
@@ -303,6 +381,66 @@ export function setupPanel(h: PanelHandlers): Panel {
 
     markSelected(i) {
       lastList.forEach((b, k) => b.setAttribute('aria-current', String(k === i)));
+    },
+
+    setSlabThickness(thickness) {
+      slab.value = String(Math.round((100 * Math.log(thickness / 4)) / Math.log(100)));
+      showSlabThickness();
+    },
+
+    setStructures(list) {
+      $('structuresSec').hidden = list.length === 0;
+      const on = $('structureList');
+      const off = $('structureOut');
+      on.textContent = '';
+      off.textContent = '';
+      structureChecks.clear();
+      for (const s of list) {
+        const li = document.createElement('li');
+        li.dataset.structure = s.id;
+        const row = element('div', 'st-row');
+        const detail = structureDetail(s);
+        if (s.status === 'visible') {
+          const label = element('label', 'check');
+          const check = document.createElement('input');
+          check.type = 'checkbox';
+          check.onchange = () => h.onStructure(s.id, check.checked);
+          structureChecks.set(s.id, check);
+          const swatch = element('span', 'swatch');
+          swatch.style.background = s.color;
+          label.append(check, swatch, element('span', 'st-name', s.name));
+          const fly = element('button', 'st-btn st-fly', '▶');
+          fly.setAttribute('aria-label', `${s.name}へ飛ぶ`);
+          fly.onclick = () => h.onFlyToStructure(s.id);
+          row.append(label, detailButton(s.name, detail), fly);
+          const oku = okuLightYears(s.distance);
+          li.append(row, element('div', 'st-meta', `${TYPE_LABEL[s.type]} · 約${oku < 10 ? oku.toFixed(1) : Math.round(oku)}億光年先`), detail);
+          on.append(li);
+        } else {
+          row.append(element('span', 'st-name', s.name), detailButton(s.name, detail));
+          li.append(row, element('div', 'st-meta', s.reason ? REASON_LABEL[s.reason] : ''), detail);
+          off.append(li);
+        }
+      }
+      off.previousElementSibling?.toggleAttribute('hidden', off.childElementCount === 0);
+      this.markStructures(new Set(), false);
+    },
+
+    markStructures(checked, dimming) {
+      const full = checked.size >= MAX_HIGHLIGHTS;
+      for (const [id, c] of structureChecks) {
+        c.checked = checked.has(id);
+        c.disabled = full && !c.checked;
+      }
+      $('sCount').textContent = checked.size ? `${checked.size} 個を強調中` : '';
+      $('dimRow').hidden = !dimming;
+      this.setStructureNote(full && structureChecks.size > MAX_HIGHLIGHTS ? `同時に強調できるのは ${MAX_HIGHLIGHTS} 個までです。` : '');
+    },
+
+    setStructureNote(text) {
+      const n = $('sNote');
+      n.hidden = !text;
+      n.textContent = text;
     },
 
     resetSlab() {

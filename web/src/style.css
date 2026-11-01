@@ -113,3 +113,32 @@ body { margin: 0; }
 .credit { font-size: 11px; color: var(--faint); line-height: 1.6; }
 .credit a { color: var(--muted); }
 #benchOut { position: fixed; left: 12px; top: 80px; z-index: 6; max-width: 60ch; font: 11px var(--f-mono); background: rgba(4,6,11,.85); padding: 8px; border: 1px solid var(--rule); word-break: break-all; }
+
+/* Sections fold by their heading, so the panel stays short. */
+.more .sec h2 { cursor: pointer; }
+.more .sec h2::before { content: '▾'; margin-right: 6px; }
+.more .sec.closed h2::before { content: '▸'; }
+.more .sec h2 { justify-content: flex-start; }
+.more .sec h2 em { margin-left: auto; }
+.more .sec.closed > :not(h2) { display: none; }
+
+.structures { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.structures li { border-bottom: 1px solid var(--rule); padding: 4px 0; }
+.st-row { display: flex; align-items: center; gap: 6px; }
+.st-row .check { flex: 1; min-width: 0; }
+.st-name { overflow: hidden; text-overflow: ellipsis; }
+.st-meta { font-size: 11px; color: var(--muted); padding-left: 24px; }
+.st-btn { background: none; border: 1px solid var(--rule); border-radius: 4px; color: var(--ink); font-size: 11px; min-width: 28px; min-height: 28px; cursor: pointer; }
+.st-btn:disabled { opacity: .4; cursor: default; }
+.st-detail { font-size: 12px; line-height: 1.6; color: var(--muted); padding: 6px 0 4px 24px; display: grid; gap: 4px; }
+.st-detail p { margin: 0; }
+.st-detail a { color: var(--ink); }
+.structures.out .st-row { justify-content: space-between; }
+.structures.out .st-name { color: var(--muted); }
+.structures.out .st-meta { padding-left: 0; }
+.structures.out .st-detail { padding-left: 0; }
+.sub { margin: 4px 0 0; font-size: 10.5px; font-weight: 600; color: var(--muted); letter-spacing: 0.08em; }
+.label.structure { font-family: var(--f-body); font-size: 12px; background: rgba(4, 6, 11, .7); padding: 2px 6px; border-radius: 4px; }
+#dimRow .slider-name { white-space: nowrap; }
+#dimRow { grid-template-columns: auto 1fr; }
+.st-name { font-size: 12.5px; }

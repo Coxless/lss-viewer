@@ -49,7 +49,7 @@ http://localhost:14173/?bench=1&budget=1000000       PC（目標 60 fps）
 
 ## コマンド
 
-`zspace-cli help` を参照してください。`mock`、`tile`、`build`、`import-vast` があります。
+`zspace-cli help` を参照してください。`mock`、`tile`、`build`、`import-vast`、`import-structures` があります。有名な構造の一覧は [structures/catalog.json](structures/catalog.json) を編集して追加できます。
 
 ## ライセンス
 

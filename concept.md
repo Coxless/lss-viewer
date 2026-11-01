@@ -145,8 +145,9 @@ WHERE s.class = 'GALAXY' AND s.survey = 'sdss'
 | 高密度領域（銀河団・超銀河団） | 高密度の等値面（δ = +1〜+5）＋一覧 | 密度格子、既存の銀河団カタログ | v1.1 |
 | フィラメント | 線（ポリライン） | DisPerSE 等の外部カタログ | v2 |
 | 任意のマーカー | 点＋ラベル | CSV（x, y, z または ra, dec, z と名前） | v1.1 |
+| 有名な構造 | 領域内の銀河に色、ラベル、解説 | `structures/catalog.json`（出典付き） | v1.1 |
 
-- 各レイヤーは `metadata.json` の `layers` 配列に `{ "id", "kind": "isosurface" | "list" | "polyline" | "markers", "file", "params" }` で登録する。
+- 各レイヤーは `metadata.json` の `layers` 配列に `{ "id", "kind": "isosurface" | "list" | "polyline" | "markers" | "regions", "file", "params" }` で登録する。
 - ビューアはレイヤーごとに表示切り替え・不透明度・一覧を持つ。UIの「ボイド」専用の文言はレイヤー名から生成する。
 - 等値面レイヤーは同じ Surface Nets を使い、しきい値の符号で低密度／高密度を切り替える。
 

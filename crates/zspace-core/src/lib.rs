@@ -16,6 +16,7 @@ pub mod octree;
 pub mod par;
 pub mod quantize;
 pub mod shells;
+pub mod structures;
 pub mod vast;
 pub mod voids;
 

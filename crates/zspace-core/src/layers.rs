@@ -44,3 +44,8 @@ pub fn list(id: &str, name: &str, file: &str, method: &str, surface: &str) -> La
         params: json!({ "method": method, "surface": surface }),
     }
 }
+
+/// Named regions of the sky that the viewer can highlight.
+pub fn regions(id: &str, name: &str, file: &str) -> Layer {
+    Layer { id: id.into(), kind: LayerKind::Regions, name: name.into(), file: file.into(), params: json!({}) }
+}

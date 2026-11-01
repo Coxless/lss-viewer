@@ -9,6 +9,7 @@ declare global {
         firstDraw: { ms: number; bytes: number } | null; frame: number; budget: number; voids: number; source: string | null;
         threshold: number; selected: number; listId: string | null;
         slab: { normal: number[]; center: number[]; thickness: number } | null; layersOn: Record<string, boolean>;
+        highlighted: string[]; hasDensity: boolean;
       };
       camera: { dist: number; flying: boolean; target: number[] };
       bench: { frames: number; fps: number; fpsLow: number; avgPoints: number; transferredMB: number; budget: number } | null;

@@ -10,4 +10,5 @@ CLI=${CLI:-target/release/zspace-cli}
   --holes data/vast/VoidFinder-nsa_v1_0_1_Planck2018_comoving_holes.txt \
   --maximal data/vast/VoidFinder-nsa_v1_0_1_Planck2018_comoving_maximal.txt \
   --name 'ボイド（VAST）'
+"$CLI" import-structures --dataset "$OUT" --catalog structures/catalog.json
 du -ah "$OUT"

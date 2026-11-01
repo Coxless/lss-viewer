@@ -8,7 +8,7 @@
     "preview": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
     "build:wasm": "wasm-pack build ../crates/zspace-wasm --target web --release --out-dir ../../web/src/wasm --out-name zspace_wasm --no-pack",
-    "fixtures": "../target/release/zspace-cli build --mock 30000 --seed 5 --out test/fixtures",
+    "fixtures": "../target/release/zspace-cli build --mock 30000 --seed 5 --out test/fixtures && ../target/release/zspace-cli build --mock 30000 --seed 5 --out test/fixtures/regions && ../target/release/zspace-cli import-structures --dataset test/fixtures/regions --catalog test/structures-test.json",
     "dataset:mock": "../target/release/zspace-cli build --mock 600000 --seed 7 --out public/dataset",
     "test": "npm run fixtures && vitest run",
     "test:e2e": "npm run dataset:mock && npm run build && playwright test"

@@ -44,6 +44,16 @@
     </section>
 
     <div class="more">
+    <section class="sec" id="structuresSec" hidden>
+      <h2>有名な構造 <em id="sCount"></em></h2>
+      <ul class="structures" id="structureList"></ul>
+      <div class="slider-row" id="dimRow"><span class="slider-name">周囲の明るさ</span><input type="range" id="dim" min="0" max="100" value="25" aria-label="強調していない銀河の明るさ"></div>
+      <p class="status" id="sNote" hidden></p>
+      <h3 class="sub">このデータでは見えないもの</h3>
+      <ul class="structures out" id="structureOut"></ul>
+      <p>範囲は論文の値をもとにした目安で、厳密な所属ではありません。</p>
+    </section>
+
     <section class="sec">
       <h2>スライス <em id="slabTxt">オフ</em></h2>
       <input type="range" id="slab" min="0" max="100" value="0" aria-label="スライスの厚さ">
@@ -86,7 +96,7 @@
       <div class="err" id="err" hidden></div>
     </section>
 
-    <section class="sec">
+    <section class="sec closed">
       <h2>軽さのしくみ</h2>
       <ul class="how">
         <li><span class="tag">前処理</span><b>八分木タイル</b>：銀河をランダムに並べ替えてから空間を8分割。上の階層ほど全体の間引き版になります。</li>

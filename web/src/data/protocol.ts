@@ -1,3 +1,4 @@
+import type { Structure } from './structures';
 import type { MeshData, Metadata, VoidEntry } from './types';
 
 export type ToWorker =
@@ -7,7 +8,9 @@ export type ToWorker =
   | { type: 'tile'; gen: number; id: number; byteOffset: number; count: number }
   | { type: 'layerMesh'; gen: number; layerId: string; file: string }
   | { type: 'layerList'; gen: number; layerId: string; file: string }
-  | { type: 'remesh'; gen: number; layerId: string; threshold: number };
+  | { type: 'remesh'; gen: number; layerId: string; threshold: number }
+  | { type: 'structures'; gen: number; file: string }
+  | { type: 'densityTexture'; gen: number };
 
 export type ToMain =
   | { type: 'opened'; gen: number; meta: Metadata; hierarchy: ArrayBuffer }
@@ -16,5 +19,7 @@ export type ToMain =
   | { type: 'tile'; gen: number; id: number; buffer: ArrayBuffer }
   | { type: 'mesh'; gen: number; layerId: string; mesh: MeshData }
   | { type: 'list'; gen: number; layerId: string; items: VoidEntry[] }
+  | { type: 'structures'; gen: number; items: Structure[] }
+  | { type: 'densityTexture'; gen: number; bytes: Uint8Array }
   | { type: 'remeshed'; gen: number; threshold: number; voids: VoidEntry[]; truncated: boolean }
   | { type: 'error'; gen: number; text: string; request: ToWorker['type']; id?: number; layerId?: string };

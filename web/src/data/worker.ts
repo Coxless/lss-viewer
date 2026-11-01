@@ -2,6 +2,7 @@
 // Fetching, decoding and Wasm all run here, so the main thread only draws and handles input.
 import { decodeShells } from './shells';
 import { HttpSource, MemorySource } from './sources';
+import type { Structure } from './structures';
 import type { DataSource, Metadata, VoidEntry } from './types';
 import type { ToMain, ToWorker } from './protocol';
 
@@ -92,6 +93,21 @@ async function handle(m: ToWorker) {
       if (!source) return;
       const text = new TextDecoder().decode(await source.file(m.file));
       post({ type: 'list', gen: m.gen, layerId: m.layerId, items: JSON.parse(text) as VoidEntry[] });
+      break;
+    }
+    case 'structures': {
+      if (!source) return;
+      const text = new TextDecoder().decode(await source.file(m.file));
+      post({ type: 'structures', gen: m.gen, items: JSON.parse(text) as Structure[] });
+      break;
+    }
+    case 'densityTexture': {
+      if (!source) return;
+      // Cells outside the survey hold 255, the top of the scale. As a texture they would
+      // bleed into their neighbours as very high density, so they become the lowest value.
+      const bytes = (await source.density()).slice();
+      for (let i = 0; i < bytes.length; i++) if (bytes[i] === 255) bytes[i] = 0;
+      post({ type: 'densityTexture', gen: m.gen, bytes }, [bytes.buffer as ArrayBuffer]);
       break;
     }
     case 'remesh': {

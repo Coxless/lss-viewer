@@ -8,7 +8,8 @@ use std::time::Instant;
 use zspace_core::catalog::{self, AttrMap};
 use zspace_core::dataset::{self, Dataset, Options};
 use zspace_core::format::{read_hierarchy, Metadata, Source};
-use zspace_core::{layers, mock, shells, vast, Galaxy};
+use zspace_core::footprint::Footprint;
+use zspace_core::{layers, mock, quantize, shells, structures, vast, Galaxy};
 
 const USAGE: &str = "\
 zspace-cli <command> [options]
@@ -25,6 +26,9 @@ zspace-cli <command> [options]
 
   import-vast --dataset DIR --holes FILE --maximal FILE [--name NAME]
               Add VAST void surfaces and the void list to a dataset.
+
+  import-structures --dataset DIR --catalog FILE
+              Check named structures against a dataset and add them as a layer.
 
 options for tile and build:
   --name NAME         source name in metadata.json
@@ -276,6 +280,57 @@ fn cmd_import_vast(args: &Args) -> Result<(), String> {
     Ok(())
 }
 
+/// Every galaxy position in a dataset, from `points.bin` or from split tiles.
+fn read_positions(dir: &Path, meta: &Metadata) -> Result<Vec<[f64; 3]>, String> {
+    let read = |path: PathBuf| fs::read(&path).map_err(|e| format!("{}: {e}", path.display()));
+    let nodes = read_hierarchy(&read(dir.join(dataset::FILE_HIERARCHY))?);
+    let b = meta.octree.point_bytes as usize;
+    let whole = if meta.octree.split_files { Vec::new() } else { read(dir.join(dataset::FILE_POINTS))? };
+    let mut out = Vec::with_capacity(meta.octree.points as usize);
+    for (id, n) in nodes.iter().enumerate() {
+        let tile;
+        let bytes = if meta.octree.split_files {
+            tile = read(dir.join("tiles").join(format!("{id}.bin")))?;
+            &tile[..]
+        } else {
+            let at = n.byte_offset as usize;
+            whole.get(at..at + n.count as usize * b).ok_or(format!("points.bin が短すぎます（タイル {id}）"))?
+        };
+        out.extend(bytes.chunks_exact(b).map(|p| quantize::decode(p, n.center, n.half).pos));
+    }
+    Ok(out)
+}
+
+fn cmd_import_structures(args: &Args) -> Result<(), String> {
+    let dir = PathBuf::from(args.required("dataset")?);
+    let read = |p: &Path| fs::read(p).map_err(|e| format!("{}: {e}", p.display()));
+    let catalog_path = args.required("catalog")?;
+    let text = fs::read_to_string(catalog_path).map_err(|e| format!("{catalog_path}: {e}"))?;
+    let catalog = structures::parse_catalog(&text)?;
+
+    let meta_path = dir.join(dataset::FILE_METADATA);
+    let mut meta: Metadata = serde_json::from_slice(&read(&meta_path)?).map_err(|e| format!("{}: {e}", meta_path.display()))?;
+    let info = meta.footprint.as_ref().ok_or("このデータセットには観測範囲がありません（build で作ってください）")?;
+    let footprint = Footprint { depth: info.healpix_nside.trailing_zeros() as u8, bits: read(&dir.join(&info.file))? };
+    let positions = read_positions(&dir, &meta)?;
+
+    let list = structures::assess(&catalog, &positions, &footprint, meta.r_range);
+    write_file(&dir, structures::FILE_STRUCTURES, &serde_json::to_vec(&list).map_err(|e| e.to_string())?)?;
+    meta.layers.retain(|l| l.id != structures::LAYER_ID);
+    meta.layers.push(layers::regions(structures::LAYER_ID, "有名な構造", structures::FILE_STRUCTURES));
+    write_file(&dir, dataset::FILE_METADATA, &serde_json::to_vec(&meta).map_err(|e| e.to_string())?)?;
+
+    for s in &list {
+        let ratio = s.ratio.map_or("-".to_string(), |r| format!("{r:.2}"));
+        let state = match s.reason {
+            None => "visible".to_string(),
+            Some(reason) => format!("{reason:?}"),
+        };
+        eprintln!("{:<14} r {:>7.1}  coverage {:>5.1}%  galaxies {:>6}  ratio {:>5}  {state}", s.entry.id, s.distance, s.coverage * 100.0, s.galaxies, ratio);
+    }
+    Ok(())
+}
+
 fn run() -> Result<(), String> {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     let Some((cmd, rest)) = argv.split_first() else {
@@ -291,6 +346,7 @@ fn run() -> Result<(), String> {
         "tile" => cmd_build(&args, true),
         "build" => cmd_build(&args, false),
         "import-vast" => cmd_import_vast(&args),
+        "import-structures" => cmd_import_structures(&args),
         other => Err(format!("unknown command: {other}\n\n{USAGE}")),
     }
 }

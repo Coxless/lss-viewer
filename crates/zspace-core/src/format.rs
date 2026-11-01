@@ -130,6 +130,7 @@ pub enum LayerKind {
     List,
     Polyline,
     Markers,
+    Regions,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

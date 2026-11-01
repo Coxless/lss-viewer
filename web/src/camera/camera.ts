@@ -83,14 +83,15 @@ export class Camera implements CameraState {
   }
 }
 
-/** `#v=x,y,z,yaw,pitch,dist`, so a view can be shared by URL. */
-export function encodeHash(s: CameraState): string {
+/** `#v=x,y,z,yaw,pitch,dist&s=a,b`, so a view and its highlighted structures can be shared by URL. */
+export function encodeHash(s: CameraState, structures: string[] = []): string {
   const n = (v: number, d: number) => +v.toFixed(d);
-  return `#v=${n(s.target[0], 2)},${n(s.target[1], 2)},${n(s.target[2], 2)},${n(s.yaw, 4)},${n(s.pitch, 4)},${n(s.dist, 2)}`;
+  const view = `#v=${n(s.target[0], 2)},${n(s.target[1], 2)},${n(s.target[2], 2)},${n(s.yaw, 4)},${n(s.pitch, 4)},${n(s.dist, 2)}`;
+  return structures.length ? `${view}&s=${structures.join(',')}` : view;
 }
 
 export function decodeHash(hash: string): CameraState | null {
-  const m = /^#v=([^&]+)$/.exec(hash);
+  const m = /^#v=([^&]+)(?:&|$)/.exec(hash);
   if (!m) return null;
   const p = m[1].split(',').map(Number);
   if (p.length !== 6 || p.some((v) => !Number.isFinite(v)) || p[5] <= 0) return null;

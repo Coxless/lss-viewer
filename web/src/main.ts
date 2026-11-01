@@ -4,6 +4,7 @@ import { Camera, decodeHash, encodeHash, FLY_MS } from './camera/camera';
 import { attachControls } from './camera/controls';
 import { Hierarchy } from './data/hierarchy';
 import type { ToMain, ToWorker } from './data/protocol';
+import { decodeStructureIds, MAX_HIGHLIGHTS, regionVectors, type Structure } from './data/structures';
 import type { Layer, Metadata, VoidEntry } from './data/types';
 import { Renderer } from './gl/renderer';
 import { selectNodes, type Slab } from './lod/select';
@@ -22,6 +23,11 @@ const DEFAULT_LAYER_COLOR = '#8ce0f7';
 /** A fan view fills the screen height with the survey's depth. */
 const FAN_DIST_FACTOR = 1.2;
 const MAX_PITCH = 1.52;
+/** How far from a structure a flight ends, in units of its extent. */
+const FAN_FOCUS_DIST = 2.4;
+const ORBIT_DIST = 2.6;
+const ORBIT_PITCH = 0.45;
+const ORBIT_TURN = 0.4;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -69,6 +75,14 @@ const state = {
   failed: new Map<number, number>(),
   firstDraw: null as null | { ms: number; bytes: number },
   remeshPending: false,
+  structures: [] as Structure[],
+  structuresLoading: false,
+  highlighted: new Set<string>(),
+  /** Brightness of everything outside the highlighted structures. */
+  dim: 0.25,
+  densityLoading: false,
+  /** Structures named by the URL, until the list they refer to arrives. */
+  pendingStructures: decodeStructureIds(location.hash),
 };
 
 function markDirty() {
@@ -114,6 +128,22 @@ worker.onmessage = (ev: MessageEvent<ToMain>) => {
       if (state.listId === m.layerId) panel.renderList(m.items, listMethod());
       markDirty();
       break;
+    case 'structures':
+      state.structuresLoading = false;
+      state.structures = m.items;
+      panel.setStructures(m.items);
+      if (state.pendingStructures) applyStructureIds(state.pendingStructures);
+      state.pendingStructures = null;
+      markDirty();
+      break;
+    case 'densityTexture': {
+      state.densityLoading = false;
+      const d = state.meta?.density;
+      if (d) renderer.setDensity(m.bytes, d.dims, d.origin, d.cell);
+      panel.setStructureNote('');
+      updateHighlights();
+      break;
+    }
     case 'remeshed': {
       // Answers to earlier slider positions can still be on their way.
       if (m.threshold !== state.threshold) break;
@@ -140,6 +170,15 @@ function onWorkerError(m: Extract<ToMain, { type: 'error' }>) {
     // Retry after a while rather than asking again on the next frame.
     state.requested.delete(m.id);
     state.failed.set(m.id, performance.now() + 3000);
+    return;
+  }
+  if (m.request === 'structures') {
+    state.structuresLoading = false;
+    return;
+  }
+  if (m.request === 'densityTexture') {
+    state.densityLoading = false;
+    panel.setStructureNote('密度を読み込めなかったため、範囲全体に色を付けています。');
     return;
   }
   if (m.request === 'remesh') state.remeshPending = false;
@@ -172,6 +211,11 @@ function beginDataset() {
   state.firstDraw = null;
   state.slab = null;
   state.remeshPending = false;
+  state.structures = [];
+  state.structuresLoading = false;
+  state.highlighted.clear();
+  state.densityLoading = false;
+  panel.setStructures([]);
   clearTimeout(remeshTimer);
   panel.setThresholdStatus('');
   panel.resetSlab();
@@ -229,6 +273,12 @@ function onOpened(meta: Metadata, hierarchy: ArrayBuffer) {
   state.listId = list?.id ?? null;
   applyListColor();
   if (list) send({ type: 'layerList', gen: state.gen, layerId: list.id, file: list.file });
+
+  const regions = firstOfKind(meta, 'regions');
+  if (regions) {
+    state.structuresLoading = true;
+    send({ type: 'structures', gen: state.gen, file: regions.file });
+  }
 
   // A view in the URL belongs to the dataset the page opened with, not to one loaded later.
   const shared = hashPending ? decodeHash(location.hash) : null;
@@ -347,10 +397,74 @@ function setLayerOn(id: string, on: boolean) {
   markDirty();
 }
 
+function structureById(id: string) {
+  return state.structures.find((s) => s.id === id && s.status === 'visible') ?? null;
+}
+
+/** Voids have nothing to paint and need their surroundings to be seen, so only the others dim the map. */
+function dimmingActive(): boolean {
+  return [...state.highlighted].some((id) => structureById(id)?.type !== 'void');
+}
+
+/** Sends the checked structures to the renderer. Smaller ones first, so a cluster keeps its colour inside its supercluster. */
+function updateHighlights() {
+  const active = [...state.highlighted].map(structureById).filter((s): s is Structure => s !== null).sort((a, b) => a.extent - b.extent);
+  renderer.setHighlights(
+    active.map((s) => ({
+      vectors: regionVectors(s.geometry, s.minDelta),
+      color: s.type === 'void' ? null : hexColor(s.color),
+      center: s.center,
+      extent: s.extent,
+    })),
+  );
+  renderer.setOutlines(
+    active
+      .filter((s) => s.type === 'void' && s.geometry.shape === 'sphere')
+      .map((s) => ({ data: s.geometry.shape === 'sphere' ? sphereLines(s.geometry.center, s.geometry.radius) : [], color: hexColor(s.color) })),
+  );
+  if (active.some((s) => s.minDelta !== undefined) && state.meta?.density && !renderer.hasDensity() && !state.densityLoading) {
+    state.densityLoading = true;
+    panel.setStructureNote('構造の形を読み込み中');
+    send({ type: 'densityTexture', gen: state.gen });
+  }
+  panel.markStructures(state.highlighted, dimmingActive());
+  markDirty();
+}
+
+function setStructure(id: string, on: boolean) {
+  if (on && !state.highlighted.has(id) && state.highlighted.size >= MAX_HIGHLIGHTS) return;
+  if (on) state.highlighted.add(id);
+  else state.highlighted.delete(id);
+  updateHighlights();
+}
+
+function applyStructureIds(ids: string[]) {
+  state.highlighted = new Set(ids.filter((id) => structureById(id)).slice(0, MAX_HIGHLIGHTS));
+  updateHighlights();
+}
+
+/** A wall is seen as a thin fan; anything else from a distance that can be orbited. */
+function flyToStructure(id: string) {
+  const s = structureById(id);
+  if (!s) return;
+  setStructure(id, true);
+  if (s.view === 'fan') {
+    const thickness = s.thickness ?? 30;
+    panel.setSlabThickness(thickness);
+    showFan(thickness, s);
+  } else {
+    state.slab = null;
+    panel.resetSlab();
+    camera.flyTo(s.center, s.extent * ORBIT_DIST, camera.yaw + ORBIT_TURN, ORBIT_PITCH, performance.now());
+    markDirty();
+  }
+  if (isPhone) panel.openSheet(false);
+}
+
 /** A thin slab through the observer and the view target, seen from straight above: the classic 2D fan. */
-function showFan(thickness: number) {
+function showFan(thickness: number, focus?: Structure) {
   const fp = state.meta?.footprint;
-  let t = camera.target;
+  let t: Vec3 = focus ? focus.center : camera.target;
   if (V.len(t) < 1) t = fp ? [...fp.centroid] : [1, 0, 0];
   const out = V.norm(t);
   let normal = V.sub([0, 0, 1], V.sc(out, out[2]));
@@ -362,7 +476,10 @@ function showFan(thickness: number) {
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
   const yaw = Math.hypot(normal[0], normal[1]) > 1e-3 ? Math.atan2(normal[1], normal[0]) : Math.atan2(-out[1], -out[0]);
   const pitch = Math.min(MAX_PITCH, Math.asin(Math.min(1, normal[2])));
-  camera.flyTo(V.sc(out, depth / 2), depth * FAN_DIST_FACTOR * (aspect < 1 ? Math.max(1, 0.8 / aspect) : 1), yaw, pitch, performance.now());
+  const fit = aspect < 1 ? Math.max(1, 0.8 / aspect) : 1;
+  const target = focus ? focus.center : V.sc(out, depth / 2);
+  const dist = focus ? focus.extent * FAN_FOCUS_DIST : depth * FAN_DIST_FACTOR;
+  camera.flyTo(target, dist * fit, yaw, pitch, performance.now());
   markDirty();
 }
 
@@ -432,6 +549,12 @@ const panel: Panel = setupPanel({
     state.showFrame = on;
     markDirty();
   },
+  onStructure: setStructure,
+  onFlyToStructure: flyToStructure,
+  onDim: (brightness) => {
+    state.dim = brightness;
+    markDirty();
+  },
   onCsv: openCsv,
   onMock: openMock,
 });
@@ -462,7 +585,7 @@ addEventListener('resize', markDirty);
 const labelsEl = $('labels');
 const labelPool: HTMLDivElement[] = [];
 
-function setLabels(items: { p: Vec3; t: string; cls?: string }[], vp: Float32Array) {
+function setLabels(items: { p: Vec3; t: string; cls?: string; color?: string }[], vp: Float32Array) {
   while (labelPool.length < items.length) {
     const d = document.createElement('div');
     d.className = 'label';
@@ -493,6 +616,7 @@ function setLabels(items: { p: Vec3; t: string; cls?: string }[], vp: Float32Arr
     }
     d.hidden = false;
     d.className = `label ${it.cls ?? ''}`;
+    d.style.color = it.color ?? '';
     if (d.textContent !== it.t) d.textContent = it.t;
     d.style.transform = `translate(${sx}px, ${sy}px) translate(-50%, -140%)`;
   });
@@ -579,7 +703,9 @@ function draw(now: number) {
   const projection = canvas.clientHeight / (2 * Math.tan(camera.fov / 2));
 
   const zt = smoothstep(state.ext * 0.22, state.ext * 1.1, camera.dist);
-  const budget = state.mode === 'shell' ? 0 : state.budget * (state.mode === 'auto' ? 1 - 0.75 * zt : 1);
+  const dimming = dimmingActive();
+  // A highlighted structure is made of galaxies, so they are not thinned out when zoomed out.
+  const budget = state.mode === 'shell' ? 0 : state.budget * (state.mode === 'auto' && !dimming ? 1 - 0.75 * zt : 1);
   const selection = selectNodes({
     hierarchy,
     eye,
@@ -596,9 +722,10 @@ function draw(now: number) {
   renderer.tiles.evict(state.budget * CACHE_FACTOR, state.frame);
 
   const shellScale = state.mode === 'gal' ? 0 : state.mode === 'shell' ? 1 : 0.35 + 0.65 * zt;
+  const dim = dimming ? state.dim : 1;
   const meshes = meta.layers
     .filter((l) => l.kind === 'isosurface' && state.layerOn.get(l.id))
-    .map((l) => ({ id: l.id, opacity: (state.layerOpacity.get(l.id) ?? 0.6) * shellScale, color: hexColor(l.params.color ?? DEFAULT_LAYER_COLOR) }));
+    .map((l) => ({ id: l.id, opacity: (state.layerOpacity.get(l.id) ?? 0.6) * shellScale * dim, color: hexColor(l.params.color ?? DEFAULT_LAYER_COLOR) }));
 
   renderer.draw({
     vp,
@@ -614,11 +741,16 @@ function draw(now: number) {
     hierarchy,
     meshes,
     frameNumber: state.frame,
+    dim,
   });
   checkFirstDraw(now);
 
-  const items: { p: Vec3; t: string; cls?: string }[] = [{ p: [0, 0, 0], t: '天の川銀河（私たち）', cls: 'me' }];
+  const items: { p: Vec3; t: string; cls?: string; color?: string }[] = [{ p: [0, 0, 0], t: '天の川銀河（私たち）', cls: 'me' }];
   if (state.showFrame) for (const t of state.ticks) items.push(t);
+  for (const id of state.highlighted) {
+    const s = structureById(id);
+    if (s) items.push({ p: s.center, t: s.name, cls: 'structure', color: s.color });
+  }
   const v = currentVoids()[state.selected];
   if (v) {
     const c = v.center as Vec3;
@@ -645,7 +777,8 @@ function draw(now: number) {
   const scale = scaleBar((2 * camera.dist * Math.tan(camera.fov / 2)) / canvas.clientHeight);
   panel.updateScale(scale.px, scale.text);
 
-  const hash = encodeHash(camera);
+  // Until the list arrives, the URL still holds what it asked for.
+  const hash = encodeHash(camera, state.pendingStructures ?? [...state.highlighted]);
   if (hash !== lastHash) {
     lastHash = hash;
     clearTimeout(hashTimer);
@@ -660,12 +793,14 @@ addEventListener('hashchange', () => {
     camera.set(s);
     markDirty();
   }
+  const ids = decodeStructureIds(location.hash);
+  if (state.meta) applyStructureIds(ids ?? []);
 });
 
 // ---------------- test and bench hooks ----------------
 const hooks = {
   /** True when nothing is loading and no frame is pending. */
-  idle: () => !!state.meta && !state.dirty && state.requested.size === 0 && state.meshLoading.size === 0 && !state.remeshPending,
+  idle: () => !!state.meta && !state.dirty && state.requested.size === 0 && state.meshLoading.size === 0 && !state.remeshPending && !state.structuresLoading && !state.densityLoading,
   stats: () => ({
     points: state.visiblePoints,
     nodes: state.visible.length,
@@ -683,6 +818,8 @@ const hooks = {
     listId: state.listId,
     slab: state.slab,
     layersOn: Object.fromEntries(state.layerOn),
+    highlighted: [...state.highlighted],
+    hasDensity: renderer.hasDensity(),
   }),
   camera,
   bench: null as null | Awaited<ReturnType<typeof runBench>>,
