@@ -129,7 +129,8 @@ pub fn find_simple(grid: &DensityGrid, threshold: f32, max_voids: usize) -> Vec<
             radius: c.1,
             delta_min: c.2 as f64,
             method: METHOD_SIMPLE.into(),
-        })
+        }
+        .rounded())
         .collect()
 }
 

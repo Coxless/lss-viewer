@@ -2,7 +2,7 @@
 
 use crate::cosmology::{to_spherical, OMEGA_L, OMEGA_M};
 use crate::density::{self, DensityGrid, GridSpec};
-use crate::footprint::{angular_range, Footprint};
+use crate::footprint::{angular_range, Footprint, RECTANGULAR_MIN_FILL};
 use crate::format::{
     write_hierarchy, Cosmology, DensityInfo, FootprintInfo, Metadata, OctreeInfo, Source, VoidEntry, FORMAT,
 };
@@ -123,12 +123,18 @@ pub fn build(galaxies: &mut [Galaxy], source: Source, opts: &Options, progress: 
     progress("footprint");
     let footprint = Footprint::from_galaxies(galaxies);
     let range = angular_range(galaxies);
+    let rectangular = !range.full_sky && footprint.box_fill(&range) >= RECTANGULAR_MIN_FILL;
+    let count = galaxies.len().max(1) as f64;
+    let centroid = std::array::from_fn(|a| galaxies.iter().map(|g| g.pos[a]).sum::<f64>() / count);
     ds.metadata.footprint = Some(FootprintInfo {
         healpix_nside: footprint.nside(),
         file: FILE_FOOTPRINT.into(),
         ra_range: range.ra,
         dec_range: range.dec,
         full_sky: range.full_sky,
+        rectangular,
+        outline: if range.full_sky || rectangular { Vec::new() } else { footprint.outline() },
+        centroid,
     });
 
     progress("density");
@@ -179,7 +185,7 @@ impl Dataset {
     pub fn files(&self) -> Vec<(String, Vec<u8>)> {
         let mut out = vec![(
             FILE_METADATA.to_string(),
-            serde_json::to_vec_pretty(&self.metadata).expect("metadata always serializes"),
+            serde_json::to_vec(&self.metadata).expect("metadata always serializes"),
         )];
         out.push((FILE_HIERARCHY.to_string(), self.hierarchy.clone()));
         if let Some(b) = &self.density_q {

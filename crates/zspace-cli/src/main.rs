@@ -249,14 +249,21 @@ fn cmd_import_vast(args: &Args) -> Result<(), String> {
 
     let name = args.get("name").unwrap_or("VAST VoidFinder");
     meta.layers.retain(|l| l.id != "vast" && l.id != "vast-list");
-    // VAST comes first: the viewer starts on the first surface and the first list.
-    meta.layers.insert(
-        0,
-        layers::isosurface("vast", name, SHELLS, 0.0, shells::Polarity::Low, mesh.positions.len(), mesh.indices.len()),
-    );
-    meta.layers.insert(1, layers::list("vast-list", name, VOIDS, vast::METHOD_VAST));
-    let pretty = serde_json::to_vec_pretty(&meta).map_err(|e| e.to_string())?;
-    write_file(&dir, dataset::FILE_METADATA, &pretty)?;
+    // The viewer starts on the first surface and the first list. The VAST list comes first
+    // because it is the better catalog. Its surface goes after the density surface because
+    // it is several times larger, and would not fit the first-load budget.
+    meta.layers.insert(0, layers::list("vast-list", name, VOIDS, vast::METHOD_VAST));
+    meta.layers.push(layers::isosurface(
+        "vast",
+        name,
+        SHELLS,
+        0.0,
+        shells::Polarity::Low,
+        mesh.positions.len(),
+        mesh.indices.len(),
+    ));
+    let json = serde_json::to_vec(&meta).map_err(|e| e.to_string())?;
+    write_file(&dir, dataset::FILE_METADATA, &json)?;
     eprintln!(
         "{} holes, {} voids, {} vertices, {} indices{} -> {}",
         holes.len(),

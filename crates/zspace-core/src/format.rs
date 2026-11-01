@@ -152,6 +152,13 @@ pub struct FootprintInfo {
     pub ra_range: [f64; 2],
     pub dec_range: [f64; 2],
     pub full_sky: bool,
+    /// True when the survey nearly fills its RA/Dec box, so the box is a fair frame.
+    pub rectangular: bool,
+    /// Boundary segments when it is not: `[ra0, dec0, ra1, dec1, ...]` in degrees.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outline: Vec<f64>,
+    /// Mean galaxy position; the default view looks at it.
+    pub centroid: [f64; 3],
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -162,6 +169,17 @@ pub struct VoidEntry {
     pub radius: f64,
     pub delta_min: f64,
     pub method: String,
+}
+
+impl VoidEntry {
+    /// Keeps only the digits the viewer can use, which shrinks long lists.
+    pub fn rounded(mut self) -> Self {
+        let round = |v: f64, k: f64| (v * k).round() / k;
+        self.center = self.center.map(|v| round(v, 100.0));
+        self.radius = round(self.radius, 100.0);
+        self.delta_min = round(self.delta_min, 1000.0);
+        self
+    }
 }
 
 #[cfg(test)]

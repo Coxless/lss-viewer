@@ -38,7 +38,13 @@ export class HttpSource implements DataSource {
 
   async metadata(): Promise<Metadata> {
     const buf = await this.bytes('metadata.json');
-    const meta = JSON.parse(new TextDecoder().decode(buf)) as Metadata;
+    let meta: Metadata;
+    try {
+      meta = JSON.parse(new TextDecoder().decode(buf)) as Metadata;
+    } catch {
+      // Hosts with a single-page fallback answer a missing file with HTML and status 200.
+      throw new Error('metadata.json を取得できません（データセットのURLを確認してください）。');
+    }
     if (meta.format !== 'zspace/1') throw new Error(`対応していないデータ形式です: ${meta.format}`);
     this.meta = meta;
     return meta;

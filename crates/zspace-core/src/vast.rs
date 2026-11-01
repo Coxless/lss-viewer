@@ -1,7 +1,8 @@
 //! VAST VoidFinder catalogs: each void is a union of spheres.
 //!
-//! `*_comoving_holes.txt` has `x y z radius flag`, where `flag` is the void id.
-//! `*_comoving_maximal.txt` has `x y z radius flag s ra dec R_eff`, one row per void.
+//! `*_comoving_holes.txt` has `x y z radius void`, where `void` is the void id.
+//! `*_comoving_maximal.txt` has `x y z radius void edge r ra dec Reff`, one row per void.
+//! Catalog v1.0 called these columns `flag` and `R_eff`; both spellings are accepted.
 
 use crate::density::GridSpec;
 use crate::format::VoidEntry;
@@ -19,8 +20,8 @@ pub struct Hole {
     pub flag: i64,
 }
 
-fn column_index(header: &str, name: &str) -> Option<usize> {
-    header.trim_start_matches('#').split_whitespace().position(|c| c == name)
+fn column_index(header: &str, names: &[&str]) -> Option<usize> {
+    header.trim_start_matches('#').split_whitespace().position(|c| names.contains(&c))
 }
 
 fn rows(text: &str) -> impl Iterator<Item = Vec<&str>> {
@@ -29,8 +30,8 @@ fn rows(text: &str) -> impl Iterator<Item = Vec<&str>> {
 
 pub fn parse_holes(text: &str) -> Result<Vec<Hole>, String> {
     let header = text.lines().next().unwrap_or("");
-    let col = |n: &str| column_index(header, n).ok_or(format!("holes の見出しに {n} 列がありません: {header}"));
-    let (x, y, z, r, flag) = (col("x")?, col("y")?, col("z")?, col("radius")?, col("flag")?);
+    let col = |n: &[&str]| column_index(header, n).ok_or(format!("holes の見出しに {} 列がありません: {header}", n[0]));
+    let (x, y, z, r, flag) = (col(&["x"])?, col(&["y"])?, col(&["z"])?, col(&["radius"])?, col(&["void", "flag"])?);
     rows(text)
         .map(|f| {
             let num = |i: usize| f.get(i).and_then(|v| v.parse::<f64>().ok()).ok_or(format!("holes の行が読めません: {f:?}"));
@@ -42,8 +43,8 @@ pub fn parse_holes(text: &str) -> Result<Vec<Hole>, String> {
 /// Reads `flag -> R_eff` from the maximal-sphere file.
 pub fn parse_effective_radii(text: &str) -> Result<BTreeMap<i64, f64>, String> {
     let header = text.lines().next().unwrap_or("");
-    let col = |n: &str| column_index(header, n).ok_or(format!("maximal の見出しに {n} 列がありません: {header}"));
-    let (flag, reff) = (col("flag")?, col("R_eff")?);
+    let col = |n: &[&str]| column_index(header, n).ok_or(format!("maximal の見出しに {} 列がありません: {header}", n[0]));
+    let (flag, reff) = (col(&["void", "flag"])?, col(&["Reff", "R_eff"])?);
     rows(text)
         .map(|f| {
             let num = |i: usize| f.get(i).and_then(|v| v.parse::<f64>().ok()).ok_or(format!("maximal の行が読めません: {f:?}"));
@@ -80,7 +81,8 @@ pub fn void_list(holes: &[Hole], effective: &BTreeMap<i64, f64>) -> Vec<VoidEntr
             radius: *radius,
             delta_min: -1.0,
             method: METHOD_VAST.into(),
-        })
+        }
+        .rounded())
         .collect()
 }
 
@@ -128,8 +130,8 @@ pub fn surface(holes: &[Hole], spec: &GridSpec, max_triangles: usize) -> Mesh {
 mod tests {
     use super::*;
 
-    const HOLES: &str = "# x y z radius flag\n10 0 0 8 0\n16 0 0 4 0\n-50 0 0 12 1\n";
-    const MAXIMAL: &str = "# x y z radius flag s ra dec R_eff\n10 0 0 8 0 10 0 0 8.5\n-50 0 0 12 1 50 180 0 12.0\n";
+    const HOLES: &str = "# x y z radius void\n10 0 0 8 0\n16 0 0 4 0\n-50 0 0 12 1\n";
+    const MAXIMAL: &str = "# x y z radius void edge r ra dec Reff\n10 0 0 8 0 1 10 0 0 8.5\n-50 0 0 12 1 0 50 180 0 12.0\n";
 
     #[test]
     fn parses_the_published_columns() {
@@ -138,6 +140,14 @@ mod tests {
         assert_eq!(h[2], Hole { center: [-50.0, 0.0, 0.0], radius: 12.0, flag: 1 });
         let r = parse_effective_radii(MAXIMAL).unwrap();
         assert_eq!(r[&0], 8.5);
+    }
+
+    #[test]
+    fn reads_the_older_column_names_too() {
+        let h = parse_holes("# x y z radius flag\n1 2 3 4 7\n").unwrap();
+        assert_eq!(h[0].flag, 7);
+        let r = parse_effective_radii("# x y z radius flag s ra dec R_eff\n1 2 3 4 7 5 6 8 9.5\n").unwrap();
+        assert_eq!(r[&7], 9.5);
     }
 
     #[test]
@@ -153,7 +163,7 @@ mod tests {
         assert_eq!(v[0].radius, 12.0);
         assert_eq!(v[0].method, METHOD_VAST);
         // (512*10 + 64*16) / 576 = 10.666...
-        assert!((v[1].center[0] - 10.0 - 2.0 / 3.0).abs() < 1e-9);
+        assert!((v[1].center[0] - 10.67).abs() < 1e-9);
     }
 
     #[test]

@@ -6,7 +6,7 @@ node_modules/
 # generated datasets and raw survey downloads stay out of git
 /dataset/
 /data/
-/web/public/dataset/
+/web/public/
 *.wasm.map
 /.workshop.lock
 /web/src/wasm/

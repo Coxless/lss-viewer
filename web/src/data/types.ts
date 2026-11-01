@@ -8,7 +8,7 @@ export interface Metadata {
   octree: { root: [number, number, number, number]; leafK: number; nodes: number; pointBytes: number; points: number; splitFiles?: boolean };
   density?: { file: string; dims: [number, number, number]; origin: [number, number, number]; cell: number; sigmaCells: number; encoding: string };
   layers: Layer[];
-  footprint?: { healpixNside: number; file: string; raRange: [number, number]; decRange: [number, number]; fullSky: boolean };
+  footprint?: { healpixNside: number; file: string; raRange: [number, number]; decRange: [number, number]; fullSky: boolean; rectangular: boolean; outline?: number[]; centroid: [number, number, number] };
 }
 
 export interface Layer {

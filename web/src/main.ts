@@ -17,6 +17,7 @@ const HASH_DELAY_MS = 400;
 const REMESH_DELAY_MS = 120;
 const HOME_PITCH = 0.95;
 const INSIDE_DIST = 0.8;
+const LARGE_MESH_VERTICES = 30_000;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.search);
@@ -200,7 +201,7 @@ function onOpened(meta: Metadata, hierarchy: ArrayBuffer) {
   for (const l of meta.layers) {
     if (l.kind !== 'isosurface') continue;
     state.layerOn.set(l.id, l === surface);
-    if (!state.layerOpacity.has(l.id)) state.layerOpacity.set(l.id, 0.6);
+    if (!state.layerOpacity.has(l.id)) state.layerOpacity.set(l.id, defaultOpacity(l));
   }
   if (surface) send({ type: 'layerMesh', gen: state.gen, layerId: surface.id, file: surface.file });
   const list = firstOfKind(meta, 'list');
@@ -217,16 +218,17 @@ function onOpened(meta: Metadata, hierarchy: ArrayBuffer) {
   markDirty();
 }
 
+/** Surfaces add up on screen, so a much larger mesh starts fainter. */
+function defaultOpacity(layer: Layer): number {
+  return 0.6 * Math.min(1, Math.sqrt(LARGE_MESH_VERTICES / Math.max(1, layer.params.vertices ?? 0)));
+}
+
 function homeView() {
   const fp = state.meta?.footprint;
+  // Look at the bulk of the galaxies, from behind the observer.
   const partial = fp && !fp.fullSky;
-  let yaw = 0;
-  if (partial && fp) {
-    const [a0, a1Raw] = fp.raRange;
-    const a1 = a1Raw < a0 ? a1Raw + 360 : a1Raw;
-    yaw = (((a0 + a1) / 2) * Math.PI) / 180 + Math.PI;
-  }
-  const target: Vec3 = partial ? [state.center[0], state.center[1], state.center[2] * 0.6] : state.center;
+  const target: Vec3 = partial ? [...fp.centroid] : state.center;
+  const yaw = partial ? Math.atan2(target[1], target[0]) + Math.PI : 0;
   const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
   const dist = state.ext * 1.25 * (aspect < 1 ? Math.max(1, 0.8 / aspect) : 1);
   return { target, dist, yaw };

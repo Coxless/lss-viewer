@@ -30,7 +30,8 @@ Rust 側の実装は `crates/zspace-core/src/format.rs`、`shells.rs`、`density
       "params": { "threshold": -0.6, "polarity": "low", "vertices": 18402, "indices": 97638 } },
     { "id": "void-list", "kind": "list", "name": "見つかったボイド", "file": "voids.json", "params": { "method": "simple" } }
   ],
-  "footprint": { "healpixNside": 128, "file": "footprint.bin", "raRange": [130, 240], "decRange": [0, 60], "fullSky": false }
+  "footprint": { "healpixNside": 128, "file": "footprint.bin", "raRange": [130, 240], "decRange": [0, 60], "fullSky": false,
+                 "rectangular": true, "centroid": [-200, 50, 180] }
 }
 ```
 
@@ -38,6 +39,9 @@ Rust 側の実装は `crates/zspace-core/src/format.rs`、`shells.rs`、`density
 - `layers` の順序に意味があります。ビューアは最初の `isosurface` と最初の `list` を初期表示にします。
 - `kind` は `isosurface`、`list`、`polyline`、`markers`。UI の文言は `name` から作ります。
 - `raRange[0] > raRange[1]` は赤経 0° をまたぐ範囲です。
+- `rectangular` が偽のとき（領域が飛び地のときなど）は、`outline` に境界線分を `[ra0, dec0, ra1, dec1, ...]`（度）で持ちます。ビューアはこれを枠として描きます。
+- `centroid` は銀河の平均位置で、初期視点の注視点に使います。
+- `zspace-cli import-vast` は、一覧を `layers` の先頭に、メッシュを末尾に追加します。VAST のメッシュは 1 MB を超えるので、表示をオンにしたときに取得します。
 - `source.mock` が真のデータは、画面で模擬データと明示します。
 
 ## hierarchy.bin

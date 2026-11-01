@@ -39,7 +39,19 @@ export function buildFrame(meta: Metadata): { lines: number[]; ticks: Tick[] } {
   const label = (r: number) => `${r} Mpc/h · z≈${redshiftAt(r).toFixed(3)}`;
   const fp = meta.footprint;
 
-  if (fp && !fp.fullSky) {
+  if (fp && !fp.fullSky && !fp.rectangular) {
+    // A survey with separate patches: its real boundary, and arcs through the main patch.
+    const o = fp.outline ?? [];
+    for (let i = 0; i + 3 < o.length; i += 4) lines.push(...sky(rMax, o[i], o[i + 1]), ...sky(rMax, o[i + 2], o[i + 3]));
+    const [cx, cy, cz] = fp.centroid;
+    const ra = (Math.atan2(cy, cx) * 180) / Math.PI;
+    const dec = (Math.atan2(cz, Math.hypot(cx, cy)) * 180) / Math.PI;
+    const arc = 40;
+    for (let r = step; r < rMax; r += step) {
+      segment((t) => sky(r, ra - arc + 2 * arc * t, dec), 40);
+      ticks.push({ p: sky(r, ra + arc, dec), t: label(r) });
+    }
+  } else if (fp && !fp.fullSky) {
     const [a0, a1Raw] = fp.raRange;
     const a1 = a1Raw < a0 ? a1Raw + 360 : a1Raw;
     const [d0, d1] = fp.decRange;
