@@ -36,8 +36,9 @@ function collectErrors(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  // Fonts come from the network; tests must not depend on them.
+  // Fonts and the visitor counter come from the network; tests must not depend on them.
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ contentType: 'text/css', body: '' }));
+  await page.route(/gc\.zgo\.at/, (r) => r.fulfill({ contentType: 'text/javascript', body: '' }));
 });
 
 test('loads the dataset, draws, and stops drawing when still (U8, 7.4)', async ({ page }) => {
